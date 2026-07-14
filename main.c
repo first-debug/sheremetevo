@@ -4,6 +4,7 @@
 #include "gst/gstobject.h"
 #include "gst/gstpad.h"
 #include "gst/gststructure.h"
+#include "gst/gstpipeline.h"
 #include <gst/gst.h>
 #include <glib.h>
 #include <stdio.h>
@@ -42,11 +43,13 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data) {
     return TRUE;
 }
 
-static void cb_newpad(GstElement *decodebin, GstPad *pad, gpointer data) {
+static void cb_newpad(GstElement *bin, GstPad *pad, gpointer data) {
     GstElement *depay = (GstElement *)data;
 
     GstCaps *new_pad_caps = gst_pad_get_current_caps(pad);
     GstStructure *structure = gst_caps_get_structure(new_pad_caps, 0);
+    gst_caps_unref(new_pad_caps);
+
     const gchar *caps_name = gst_structure_get_name(structure);
     if (!g_str_has_suffix(caps_name, "x-rtp")) {
         g_print("Skip pad with capability = %s.\n", caps_name);
@@ -68,12 +71,73 @@ static void cb_newpad(GstElement *decodebin, GstPad *pad, gpointer data) {
     gst_caps_unref(new_pad_caps);
 }
 
+// TODO: rtspsrc может обрабатывать несколько потоков, исходя из
+// этого - можно создавать бин только для конвертации rtp
+// пакетов в raw видео.
+GstElement *create_source_bin(gchar *uri, gint index) {
+    GstElement *bin = NULL, *source = NULL, *depay = NULL,
+               *decoder = NULL;
+    gchar bin_name[16];
+    snprintf(bin_name, 15, "source-bin-%01d", index);
+
+    bin = gst_bin_new(bin_name);
+    source = gst_element_factory_make("rtspsrc", "source");
+    depay = gst_element_factory_make("rtph264depay", "depay");
+    decoder = gst_element_factory_make("nvv4l2decoder", "decoder");
+
+    if (!bin || !source || !depay || !decoder) {
+        g_print("Cannot create rtsp source bin for uri = %s", uri);
+        if (bin) gst_object_unref(bin);
+        if (source) gst_object_unref(source);
+        if (depay) gst_object_unref(depay);
+        if (decoder) gst_object_unref(decoder);
+        return NULL;
+    }
+
+    gst_bin_add_many(GST_BIN(bin), source, depay, decoder, NULL);
+
+    g_object_set(G_OBJECT(source), "location", uri, NULL);
+    // g_object_set(G_OBJECT(source), "use-buffering", TRUE, NULL);
+
+    g_signal_connect(source, "pad-added", G_CALLBACK(cb_newpad), depay);
+
+    if (!gst_element_link_many(depay, decoder, NULL)){
+        g_printerr("Cannot link elements.\n");
+        gst_object_unref(bin);
+        return NULL;
+    }
+
+    GstPad *decoder_src = gst_element_get_static_pad(decoder, "src");
+    if (!decoder_src) {
+        g_printerr ("Failed to get static pad of %s\n", gst_element_get_name(decoder));
+        gst_object_unref(bin);
+        return NULL;
+    }
+
+    GstPad *ghost_pad = gst_ghost_pad_new("src", decoder_src);
+    gst_object_unref(decoder_src);
+
+    if (!ghost_pad) {
+        g_print("Failed to create ghost pad for %s\n", gst_element_get_name(bin));
+        gst_object_unref(bin);
+        return NULL;
+    }
+
+    if (!gst_element_add_pad(bin, ghost_pad)) {
+        g_printerr ("Failed to add ghost pad in %s\n", gst_element_get_name(bin));
+        gst_object_unref(bin);
+        return NULL;
+    }
+
+    return bin;
+}
+
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
-    GstElement *pipeline = NULL, *source = NULL, *depay = NULL,
-               *decoder = NULL, *streammux = NULL, *pgie = NULL,
+    GstElement *pipeline = NULL, *streammux = NULL, *pgie = NULL,
                *nvosd = NULL, *streamdemux = NULL,
                *sink = NULL;
+    GstPad *src_pad = NULL, *sink_pad = NULL;
 #ifdef SAVE_TO_FILE
     GstElement *encoder = NULL, *sink_parser = NULL, *mp4mux = NULL;
 #endif
@@ -83,17 +147,13 @@ int main(int argc, char *argv[]) {
     gst_init(&argc, &argv);
     loop = g_main_loop_new(NULL, FALSE);
 
-    if (argc != 3) {
-        g_printerr("Usage: %s <video_path> <path_to_config_file_nvinfer>\n", argv[0]);
+    if (argc < 3) {
+        g_printerr("Usage: %s <path_to_config_file_nvinfer> <video_path1> <video_path2> ...\n", argv[0]);
         return -1;
     }
 
     // Elements initialization
     pipeline = gst_pipeline_new("sheremetevo");
-
-    source = gst_element_factory_make("rtspsrc", "source");
-    depay = gst_element_factory_make("rtph264depay", "depay");
-    decoder = gst_element_factory_make("nvv4l2decoder", "decoder");
 
     streammux = gst_element_factory_make("nvstreammux", "stream-muxer");
     pgie = gst_element_factory_make("nvinfer", "primary-infer");
@@ -111,23 +171,17 @@ int main(int argc, char *argv[]) {
 #endif
 
     // TODO: add all elements
-    if (!pipeline || !source || !depay  || !decoder ||
-            !streammux || !pgie || !streamdemux ||
+    if (!pipeline || !streammux || !pgie || !streamdemux ||
             !nvosd || !sink) {
         g_printerr("Cannot create some modules.\n");
         return -1;
     }
 
-    gst_bin_add_many(GST_BIN(pipeline), source, depay, decoder, streammux,
-            pgie, streamdemux, nvosd, sink, NULL);
+    gst_bin_add_many(GST_BIN(pipeline), streammux, pgie, streamdemux,
+            nvosd, sink, NULL);
 #if SAVE_TO_FILE
     gst_bin_add_many(GST_BIN(pipeline), encoder, sink_parser, mp4mux, NULL);
 #endif
-
-    g_signal_connect(source, "pad-added", G_CALLBACK(cb_newpad), depay);
-
-    g_object_set(G_OBJECT(source), "location", argv[1], NULL);
-    // g_object_set(G_OBJECT(source), "use-buffering", TRUE, NULL);
 
     // TODO: add resolution to config file
     g_object_set(G_OBJECT(streammux),
@@ -135,15 +189,18 @@ int main(int argc, char *argv[]) {
             "width", 854,
             "height", 480, NULL);
 
-    g_object_set(G_OBJECT(pgie), "config-file-path", argv[2], NULL);
+    g_object_set(G_OBJECT(pgie), "config-file-path", argv[1], NULL);
 
 #if SAVE_TO_FILE
     g_object_set(G_OBJECT(sink), "location", "media/output.mp4", NULL);
 #endif
 
     // Dynamic linking
-    GstPad *src_pad = gst_element_get_static_pad(decoder, "src");
-    GstPad *sink_pad = gst_element_request_pad_simple(streammux, "sink_0");
+    GstElement *src_bin = create_source_bin(argv[2], 0);
+    gst_bin_add(GST_BIN(pipeline), src_bin);
+
+    src_pad = gst_element_get_static_pad(src_bin, "src");
+    sink_pad = gst_element_request_pad_simple(streammux, "sink_0");
 
     if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
         g_printerr("Cannot link decoder_src and streammux.\n");
@@ -180,10 +237,6 @@ int main(int argc, char *argv[]) {
     gst_object_unref(sink_pad);
 #endif
 
-    if (!gst_element_link_many(depay, decoder, NULL)){
-        g_printerr("Cannot link elements.\n");
-        return -1;
-    }
     if (!gst_element_link_many(streammux, pgie, streamdemux, NULL)) {
         g_printerr("Cannot link elements.\n");
         return -1;

@@ -36,7 +36,7 @@ LIBS:= $(shell pkg-config --libs $(PKGS)) \
 all: $(TARGET)
 
 run: $(TARGET)
-	$(TARGET) rtspt://localhost:8554/live /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt
+	$(TARGET) /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt rtspt://localhost:8554/live
 
 $(BUILD_DIR):
 	mkdir -p $@
