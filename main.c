@@ -27,6 +27,15 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data) {
             g_main_loop_quit(loop);
             break;
         }
+        case GST_MESSAGE_STATE_CHANGED: {
+            GstState old_state, new_state, pending_state;
+            gst_message_parse_state_changed(msg, &old_state, &new_state, &pending_state);
+
+            g_print("%-21s state has been changed from %s to %s, pending state %s\n",
+                    msg->src->name, gst_element_state_get_name(old_state), gst_element_state_get_name(new_state),
+                    gst_element_state_get_name(pending_state));
+            break;
+        }
         default:
             break;
     }
@@ -61,10 +70,10 @@ static void cb_newpad(GstElement *decodebin, GstPad *pad, gpointer data) {
 
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
-    GstElement *pipeline = NULL, *source = NULL, *streammux = NULL,
-               *pgie = NULL, *nvvidconv = NULL, *nvosd = NULL, *sink = NULL;
-    GstElement *rtp_video_caps = NULL, *depay = NULL, *video_caps = NULL, *parser = NULL, *decoder = NULL;
-    GstCaps *caps = NULL;
+    GstElement *pipeline = NULL, *source = NULL, *depay = NULL, *parser = NULL,
+               *decoder = NULL, *streammux = NULL, *pgie = NULL,
+               *nvosd = NULL, *streamdemux = NULL,
+               *sink = NULL;
     GstBus *bus = NULL;
     guint bus_watch_id;
 
@@ -72,94 +81,84 @@ int main(int argc, char *argv[]) {
     loop = g_main_loop_new(NULL, FALSE);
 
     if (argc != 3) {
-        g_printerr("Usage: %s <video_path> <path_to_config_файлу_nvinfer>\n", argv[0]);
+        g_printerr("Usage: %s <video_path> <path_to_config_file_nvinfer>\n", argv[0]);
         return -1;
     }
 
     // Elements initialization
-    // source = gst_element_factory_make("uridecodebin", "source");
+    pipeline = gst_pipeline_new("sheremetevo");
+
     source = gst_element_factory_make("rtspsrc", "source");
-    rtp_video_caps = gst_element_factory_make("capsfilter", "rtp-video-caps");
     depay = gst_element_factory_make("rtph264depay", "depay");
     parser = gst_element_factory_make("h264parse", "parser");
     decoder = gst_element_factory_make("nvv4l2decoder", "decoder");
-    // nvvidconv_src = gst_element_factory_make("nvvideoconvert", "nvvidconv-src");
-    video_caps = gst_element_factory_make("capsfilter", "video-caps");
+
     streammux = gst_element_factory_make("nvstreammux", "stream-muxer");
-    pgie = gst_element_factory_make("nvinfer", "primary-infer"); // Вот он, наш nvinfer!
-    nvvidconv = gst_element_factory_make("nvvideoconvert", "nvvidconv");
+    pgie = gst_element_factory_make("nvinfer", "primary-infer");
+    streamdemux = gst_element_factory_make("nvstreamdemux", "streamdemux");
+
     nvosd = gst_element_factory_make("nvdsosd", "nvosd");
     sink = gst_element_factory_make("autovideosink", "sink");
-    // sink = gst_element_factory_make("fakesink", "sink");
 
     // TODO: add all elements
-    if (!source || !depay || !parser || !decoder ||
-            !streammux || !pgie || !nvvidconv || !nvosd || !sink) {
+    if (!pipeline || !source || !depay || !parser || !decoder ||
+            !streammux || !pgie || !streamdemux ||
+            !nvosd || !sink) {
         g_printerr("Cannot create some modules.\n");
         return -1;
     }
 
-    pipeline = gst_pipeline_new("sheremetevo");
-    if (!pipeline) {
-        g_printerr("Cannot create pipeline.\n");
-        return -1;
-    }
+    gst_bin_add_many(GST_BIN(pipeline), source, depay,
+            parser, decoder, streammux, pgie, streamdemux, nvosd, sink,
+            NULL);
 
-    gst_bin_add_many(GST_BIN(pipeline), source, rtp_video_caps, depay, video_caps, parser, decoder, streammux, pgie, nvvidconv, nvosd, sink, NULL);
-
-    caps = gst_caps_new_simple("application/x-rtp",
-            "media", G_TYPE_STRING, "video", NULL);
-    g_object_set(G_OBJECT(rtp_video_caps), "caps", caps, NULL);
-    gst_caps_unref(caps);
-
-    caps = gst_caps_new_simple("video/x-h264",
-        "stream-foramt", G_TYPE_STRING, "byte-stream",
-        "aligmet", G_TYPE_STRING, "au", NULL);
-    g_object_set(G_OBJECT(video_caps), "caps", caps, NULL);
-    gst_caps_unref(caps);
-
-    g_signal_connect(source, "pad-added", G_CALLBACK(cb_newpad), rtp_video_caps);
+    g_signal_connect(source, "pad-added", G_CALLBACK(cb_newpad), depay);
 
     g_object_set(G_OBJECT(source), "location", argv[1], NULL);
     // g_object_set(G_OBJECT(source), "use-buffering", TRUE, NULL);
 
-    g_object_set(G_OBJECT(streammux), "batch-size", 1, NULL);
-    g_object_set(G_OBJECT(streammux), "width", 1280, NULL);
-    g_object_set(G_OBJECT(streammux), "height", 720, NULL);
+    // TODO: add resolution to config file
+    g_object_set(G_OBJECT(streammux),
+            "batch-size", 1,
+            "width", 854,
+            "height", 480, NULL);
 
     g_object_set(G_OBJECT(pgie), "config-file-path", argv[2], NULL);
 
     // Dynamic linking
-    GstPad *mux_sink_pad = gst_element_request_pad_simple(streammux, "sink_1");
-    GstPad *decoder_src_pad = gst_element_get_static_pad(decoder, "src");
+    GstPad *src_pad = gst_element_get_static_pad(decoder, "src");
+    GstPad *sink_pad = gst_element_request_pad_simple(streammux, "sink_0");
 
-    if (gst_pad_link(decoder_src_pad, mux_sink_pad) != GST_PAD_LINK_OK) {
+    if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
         g_printerr("Cannot link decoder_src and streammux.\n");
-        gst_object_unref(decoder_src_pad);
-        gst_object_unref(mux_sink_pad);
+        gst_object_unref(src_pad);
+        gst_object_unref(sink_pad);
         return -1;
     }
+    gst_object_unref(src_pad);
+    gst_object_unref(sink_pad);
 
-    gst_object_unref(decoder_src_pad);
-    gst_object_unref(mux_sink_pad);
-    if (!gst_element_link_many(rtp_video_caps, depay, decoder, NULL)){
+    src_pad = gst_element_request_pad_simple(streamdemux, "src_0");
+    sink_pad = gst_element_get_static_pad(nvosd, "sink");
+
+    if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
+        g_printerr("Cannot link streamdemux and nvosd.\n");
+        gst_object_unref(src_pad);
+        gst_object_unref(sink_pad);
+        return -1;
+    }
+    gst_object_unref(src_pad);
+    gst_object_unref(sink_pad);
+
+    if (!gst_element_link_many(depay, decoder, NULL)){
         g_printerr("Cannot link elements.\n");
         return -1;
     }
-    if (!gst_element_link_many(streammux, pgie, nvvidconv, nvosd, sink, NULL)) {
+    if (!gst_element_link_many(streammux, pgie, streamdemux, NULL)) {
         g_printerr("Cannot link elements.\n");
         return -1;
     }
 
-    // Getting src pad to catch output from pgie. Why?
-    // GstPad *sink_pad = gst_element_get_static_pad(pgie, "src");
-    // if (!sink_pad) {
-    //     g_printerr("Cannot get src pad from pgie.\n");
-    //     return -1;
-    // }
-    //
-    // gst_pad_add_probe(sink_pad, GST_PAD_PROBE_TYPE_BUFFER, probe_callback, &H, NULL);
-    // gst_object_unref(sink_pad);
 
     bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
     bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);
