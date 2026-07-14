@@ -31,11 +31,8 @@ LIBS:= $(shell pkg-config --libs $(PKGS)) \
 
 all: $(TARGET)
 
-run-file: $(TARGET)
-	$(TARGET) file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt
-
-run-rtsp: $(TARGET)
-	$(TARGET) rtspt://192.168.10.185:8554/live /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt
+run: $(TARGET)
+	$(TARGET) rtspt://localhost:8554/live /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt
 
 $(BUILD_DIR):
 	mkdir -p $@
