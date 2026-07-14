@@ -70,7 +70,7 @@ static void cb_newpad(GstElement *decodebin, GstPad *pad, gpointer data) {
 
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
-    GstElement *pipeline = NULL, *source = NULL, *depay = NULL, *parser = NULL,
+    GstElement *pipeline = NULL, *source = NULL, *depay = NULL,
                *decoder = NULL, *streammux = NULL, *pgie = NULL,
                *nvosd = NULL, *streamdemux = NULL,
                *sink = NULL;
@@ -93,7 +93,6 @@ int main(int argc, char *argv[]) {
 
     source = gst_element_factory_make("rtspsrc", "source");
     depay = gst_element_factory_make("rtph264depay", "depay");
-    parser = gst_element_factory_make("h264parse", "parser");
     decoder = gst_element_factory_make("nvv4l2decoder", "decoder");
 
     streammux = gst_element_factory_make("nvstreammux", "stream-muxer");
@@ -112,16 +111,15 @@ int main(int argc, char *argv[]) {
 #endif
 
     // TODO: add all elements
-    if (!pipeline || !source || !depay || !parser || !decoder ||
+    if (!pipeline || !source || !depay  || !decoder ||
             !streammux || !pgie || !streamdemux ||
             !nvosd || !sink) {
         g_printerr("Cannot create some modules.\n");
         return -1;
     }
 
-    gst_bin_add_many(GST_BIN(pipeline), source, depay,
-            parser, decoder, streammux, pgie, streamdemux, nvosd, sink,
-            NULL);
+    gst_bin_add_many(GST_BIN(pipeline), source, depay, decoder, streammux,
+            pgie, streamdemux, nvosd, sink, NULL);
 #if SAVE_TO_FILE
     gst_bin_add_many(GST_BIN(pipeline), encoder, sink_parser, mp4mux, NULL);
 #endif
