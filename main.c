@@ -74,6 +74,9 @@ int main(int argc, char *argv[]) {
                *decoder = NULL, *streammux = NULL, *pgie = NULL,
                *nvosd = NULL, *streamdemux = NULL,
                *sink = NULL;
+#ifdef SAVE_TO_FILE
+    GstElement *encoder = NULL, *sink_parser = NULL, *mp4mux = NULL;
+#endif
     GstBus *bus = NULL;
     guint bus_watch_id;
 
@@ -98,7 +101,15 @@ int main(int argc, char *argv[]) {
     streamdemux = gst_element_factory_make("nvstreamdemux", "streamdemux");
 
     nvosd = gst_element_factory_make("nvdsosd", "nvosd");
+#if SAVE_TO_FILE
+    // TODO: switch media type from mp4 to another witch not need EOS to valid save.
+    encoder = gst_element_factory_make("nvv4l2h264enc", "encoder");
+    sink_parser = gst_element_factory_make("h264parse", "sink_parser");
+    mp4mux = gst_element_factory_make("mp4mux", "mp4mux");
+    sink = gst_element_factory_make("filesink", "sink");
+#else
     sink = gst_element_factory_make("autovideosink", "sink");
+#endif
 
     // TODO: add all elements
     if (!pipeline || !source || !depay || !parser || !decoder ||
@@ -111,6 +122,9 @@ int main(int argc, char *argv[]) {
     gst_bin_add_many(GST_BIN(pipeline), source, depay,
             parser, decoder, streammux, pgie, streamdemux, nvosd, sink,
             NULL);
+#if SAVE_TO_FILE
+    gst_bin_add_many(GST_BIN(pipeline), encoder, sink_parser, mp4mux, NULL);
+#endif
 
     g_signal_connect(source, "pad-added", G_CALLBACK(cb_newpad), depay);
 
@@ -124,6 +138,10 @@ int main(int argc, char *argv[]) {
             "height", 480, NULL);
 
     g_object_set(G_OBJECT(pgie), "config-file-path", argv[2], NULL);
+
+#if SAVE_TO_FILE
+    g_object_set(G_OBJECT(sink), "location", "media/output.mp4", NULL);
+#endif
 
     // Dynamic linking
     GstPad *src_pad = gst_element_get_static_pad(decoder, "src");
@@ -150,6 +168,20 @@ int main(int argc, char *argv[]) {
     gst_object_unref(src_pad);
     gst_object_unref(sink_pad);
 
+#if SAVE_TO_FILE
+    src_pad = gst_element_get_static_pad(sink_parser, "src");
+    sink_pad = gst_element_request_pad_simple(mp4mux, "video_0");
+
+    if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
+        g_printerr("Cannot link sink_parser and mp4mux.\n");
+        gst_object_unref(src_pad);
+        gst_object_unref(sink_pad);
+        return -1;
+    }
+    gst_object_unref(src_pad);
+    gst_object_unref(sink_pad);
+#endif
+
     if (!gst_element_link_many(depay, decoder, NULL)){
         g_printerr("Cannot link elements.\n");
         return -1;
@@ -159,6 +191,21 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+#if SAVE_TO_FILE
+    if (!gst_element_link_many(nvosd, encoder, sink_parser, NULL)) {
+        g_printerr("Cannot link elements.\n");
+        return -1;
+    }
+    if (!gst_element_link_many(mp4mux, sink, NULL)) {
+        g_printerr("Cannot link mp4mux and sink.\n");
+        return -1;
+    }
+#else
+    if (!gst_element_link(nvosd, sink)) {
+        g_printerr("Cannot link nvosd and sink.\n");
+        return -1;
+    }
+#endif
 
     bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
     bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);

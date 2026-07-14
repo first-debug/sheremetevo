@@ -23,6 +23,10 @@ CFLAGS+= $(shell pkg-config --cflags $(PKGS)) \
 		 -I/opt/nvidia/deepstream/deepstream/sources/includes \
 		 -L/opt/nvidia/deepstream/deepstream/lib -lnvdsgst_meta -lnvds_meta
 
+ifeq ($(SAVE_TO), file)
+	CFLAGS+= -DSAVE_TO_FILE
+endif
+
 LIBS:= $(shell pkg-config --libs $(PKGS)) \
 		-L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta -lnvds_yml_parser \
 		-lcuda -lnvbufsurface -Wl,-rpath,$(LIB_INSTALL_DIR)
