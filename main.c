@@ -248,8 +248,7 @@ static GstElement *create_rtsp_sink_bin(gchar *uri, gint index) {
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
     GstElement *pipeline = NULL, *streammux = NULL, *pgie = NULL,
-               *nvosd = NULL, *streamdemux = NULL,
-               *sink = NULL;
+               *nvosd = NULL, *tiler = NULL, *sink = NULL;
     GstPad *src_pad = NULL, *sink_pad = NULL;
 #ifdef SAVE_TO_FILE
     GstElement *encoder = NULL, *sink_parser = NULL, *mp4mux = NULL;
@@ -261,7 +260,7 @@ int main(int argc, char *argv[]) {
     loop = g_main_loop_new(NULL, FALSE);
 
     if (argc < 3) {
-        g_printerr("Usage: %s <path_to_config_file_nvinfer> <video_path1> <video_path2> ...\n", argv[0]);
+        g_printerr("Usage: %s <path_to_config_file_nvinfer> <video_output_path> <video_path1> <video_path2> ...\n", argv[0]);
         return -1;
     }
 
@@ -270,9 +269,9 @@ int main(int argc, char *argv[]) {
 
     streammux = gst_element_factory_make("nvstreammux", "stream-muxer");
     pgie = gst_element_factory_make("nvinfer", "primary-infer");
-    streamdemux = gst_element_factory_make("nvstreamdemux", "streamdemux");
-
     nvosd = gst_element_factory_make("nvdsosd", "nvosd");
+
+    tiler = gst_element_factory_make("nvmultistreamtiler", "tiler");
 #if SAVE_TO_FILE
     // TODO: switch media type from mp4 to another witch not need EOS to valid save.
     encoder = gst_element_factory_make("nvv4l2h264enc", "encoder");
@@ -283,58 +282,57 @@ int main(int argc, char *argv[]) {
     sink = create_rtsp_sink_bin(argv[2], 0);
 #endif
 
-    // TODO: add all elements
-    if (!pipeline || !streammux || !pgie || !streamdemux ||
-            !nvosd || !sink) {
+    if (!pipeline || !streammux || !pgie || !nvosd || !tiler || !sink) {
         g_printerr("Cannot create some modules.\n");
         return -1;
     }
 
-    gst_bin_add_many(GST_BIN(pipeline), streammux, pgie, streamdemux,
-            nvosd, sink, NULL);
+    gst_bin_add_many(GST_BIN(pipeline), streammux, pgie, nvosd,
+            tiler, sink, NULL);
 #if SAVE_TO_FILE
     gst_bin_add_many(GST_BIN(pipeline), encoder, sink_parser, mp4mux, NULL);
 #endif
 
-    // TODO: add resolution to config file
     g_object_set(G_OBJECT(streammux),
-            "batch-size", 1,
-            "width", 854,
-            "height", 480, NULL);
+            "batch-size", argc - 3,
+            "width", 1728,
+            "height", 2752, NULL);
+            // "width", 854,
+            // "height", 480, NULL);
 
     g_object_set(G_OBJECT(pgie), "config-file-path", argv[1], NULL);
+    // 1728 2752
+    // 3656 5504
+    g_object_set(G_OBJECT(tiler),
+            "width", 2720,
+            "height", 4096, NULL);
 
 #if SAVE_TO_FILE
     g_object_set(G_OBJECT(sink), "location", "media/output.mp4", NULL);
 #endif
 
     // Dynamic linking
-    GstElement *src_bin = create_source_bin(argv[2], 0);
-    gst_bin_add(GST_BIN(pipeline), src_bin);
+    gchar buffer[20];
+    GstElement *src_bin = NULL;
+    for (int i = 3, index; i < argc; i++) {
+        index = i - 3;
+        src_bin = create_source_bin(argv[i], index);
 
-    src_pad = gst_element_get_static_pad(src_bin, "src");
-    sink_pad = gst_element_request_pad_simple(streammux, "sink_0");
+        gst_bin_add_many(GST_BIN(pipeline), src_bin, NULL);
 
-    if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
-        g_printerr("Cannot link decoder_src and streammux.\n");
+        snprintf(buffer, 17, "sink_%1d", index);
+        src_pad = gst_element_get_static_pad(src_bin, "src");
+        sink_pad = gst_element_request_pad_simple(streammux, buffer);
+
+        if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
+            g_printerr("Cannot link decoder_src and streammux.\n");
+            gst_object_unref(src_pad);
+            gst_object_unref(sink_pad);
+            return -1;
+        }
         gst_object_unref(src_pad);
         gst_object_unref(sink_pad);
-        return -1;
     }
-    gst_object_unref(src_pad);
-    gst_object_unref(sink_pad);
-
-    src_pad = gst_element_request_pad_simple(streamdemux, "src_0");
-    sink_pad = gst_element_get_static_pad(nvosd, "sink");
-
-    if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
-        g_printerr("Cannot link streamdemux and nvosd.\n");
-        gst_object_unref(src_pad);
-        gst_object_unref(sink_pad);
-        return -1;
-    }
-    gst_object_unref(src_pad);
-    gst_object_unref(sink_pad);
 
 #if SAVE_TO_FILE
     src_pad = gst_element_get_static_pad(sink_parser, "src");
@@ -350,7 +348,7 @@ int main(int argc, char *argv[]) {
     gst_object_unref(sink_pad);
 #endif
 
-    if (!gst_element_link_many(streammux, pgie, streamdemux, NULL)) {
+    if (!gst_element_link_many(streammux, pgie, nvosd, tiler, NULL)) {
         g_printerr("Cannot link elements.\n");
         return -1;
     }
@@ -365,8 +363,8 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 #else
-    if (!gst_element_link(nvosd, sink)) {
-        g_printerr("Cannot link nvosd and sink.\n");
+    if (!gst_element_link_many(tiler, sink, NULL)) {
+        g_printerr("Cannot link tiler and sink.\n");
         return -1;
     }
 #endif

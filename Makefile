@@ -1,6 +1,7 @@
 APP:= sheremetevo-app
-BUILD_DIR:= build
 
+BUILD_DIR:= build
+CONFIGS_DIR:= configs
 GRAPHS_DIR:= graphs
 
 TARGET:= $(BUILD_DIR)/$(APP)
@@ -37,8 +38,21 @@ LIBS:= $(shell pkg-config --libs $(PKGS)) \
 
 all: $(TARGET)
 
-run: $(TARGET)
-	$(TARGET) /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt rtspt://localhost:8554/live
+run-remote-src: $(TARGET)
+	$(TARGET) $(CONFIGS_DIR)/config_infer_primary.txt \
+		rtspt://192.168.10.185:8554/output \
+		rtspt://192.168.10.185:8554/svo1 \
+		rtspt://192.168.10.185:8554/svo2 \
+		rtspt://192.168.10.185:8554/svo3 \
+		rtspt://192.168.10.185:8554/svo4
+
+run-local-src: $(TARGET)
+	$(TARGET) $(CONFIGS_DIR)/config_infer_primary.txt \
+		rtspt://192.168.10.185:8554/output \
+		rtspt://192.168.10.185:8554/live \
+		rtspt://192.168.10.185:8554/live \
+		rtspt://192.168.10.185:8554/live \
+		rtspt://192.168.10.185:8554/live
 
 $(BUILD_DIR):
 	mkdir -p $@
