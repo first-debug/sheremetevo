@@ -280,8 +280,7 @@ int main(int argc, char *argv[]) {
     mp4mux = gst_element_factory_make("mp4mux", "mp4mux");
     sink = gst_element_factory_make("filesink", "sink");
 #else
-    sink = gst_element_factory_make("autovideosink", "sink");
-    sink = create_rtsp_sink_bin("rtspt://localhost:8554/output", 0);
+    sink = create_rtsp_sink_bin(argv[2], 0);
 #endif
 
     // TODO: add all elements
