@@ -18,6 +18,7 @@ typedef struct {
 
 static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data);
 static void cb_newpad(GstElement *bin, GstPad *pad, gpointer data);
+static gboolean cb_removepad(GstElement *bin, GstPad *pad, gpointer data);
 static GstElement *create_source_bin(gchar *uri, gint index);
 static GstElement *create_rtsp_sink_bin(gchar *uri, gint index);
 
@@ -96,6 +97,16 @@ static void cb_newpad(GstElement *bin, GstPad *pad, gpointer data) {
         g_printerr("Cannot link source and depay.\n");
     }
     gst_object_unref(sinkpad);
+}
+
+static gboolean cb_removepad(GstElement *bin, GstPad *pad, gpointer data) {
+    gchar *bin_name = GST_OBJECT_NAME(bin);
+    gchar *pad_name = gst_pad_get_name(pad);
+
+    g_print("Remove pad %s from %s\n", pad_name, bin_name);
+    g_free(bin_name);
+    g_free(pad_name);
+    return TRUE;
     gst_object_unref(structure);
     gst_caps_unref(new_pad_caps);
 }
@@ -129,6 +140,7 @@ static GstElement *create_source_bin(gchar *uri, gint index) {
     // g_object_set(G_OBJECT(source), "use-buffering", TRUE, NULL);
 
     g_signal_connect(source, "pad-added", G_CALLBACK(cb_newpad), depay);
+    g_signal_connect(source, "pad-removed", G_CALLBACK(cb_removepad), NULL);
 
     if (!gst_element_link_many(depay, decoder, NULL)){
         g_printerr("Cannot link elements.\n");
