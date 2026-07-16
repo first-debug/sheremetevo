@@ -1,6 +1,8 @@
 APP:= sheremetevo-app
 BUILD_DIR:= build
 
+GRAPHS_DIR:= graphs
+
 TARGET:= $(BUILD_DIR)/$(APP)
 
 TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
@@ -41,11 +43,21 @@ run: $(TARGET)
 $(BUILD_DIR):
 	mkdir -p $@
 
+$(GRAPHS_DIR):
+	mkdir -p $@
+
 $(BUILD_DIR)/%.o: %.c $(INCS) Makefile | $(BUILD_DIR)
 	$(CC) -c -o $@ $(CFLAGS) $<
 
 $(TARGET): $(BUILD_OBJS) Makefile | $(BUILD_DIR)
 	$(CC) -o $@ $(BUILD_OBJS) $(LIBS)
 
+gen-graph: $(TARGET) | $(GRAPHS_DIR)
+	GST_DEBUG_DUMP_DOT_DIR=graphs $(MAKE) run
+
+graph:
+	dot -Tpng graphs/sheremetevo.dot -o graphs/sheremetevo.png
+
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf $(GRAPHS_DIR)
