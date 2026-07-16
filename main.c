@@ -16,6 +16,11 @@ typedef struct {
     GstElement *pipeline;
 } BusCallData;
 
+static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data);
+static void cb_newpad(GstElement *bin, GstPad *pad, gpointer data);
+static GstElement *create_source_bin(gchar *uri, gint index);
+static GstElement *create_rtsp_sink_bin(gchar *uri, gint index);
+
 static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data) {
     BusCallData *data_struct = (BusCallData *)data;
     switch (GST_MESSAGE_TYPE(msg)) {
@@ -96,9 +101,9 @@ static void cb_newpad(GstElement *bin, GstPad *pad, gpointer data) {
 }
 
 // TODO: rtspsrc может обрабатывать несколько потоков, исходя из
-// этого - можно создавать бин только для конвертации rtp
-// пакетов в raw видео.
-GstElement *create_source_bin(gchar *uri, gint index) {
+//  этого - можно создавать бин только для конвертации rtp
+//  пакетов в raw видео.
+static GstElement *create_source_bin(gchar *uri, gint index) {
     GstElement *bin = NULL, *source = NULL, *depay = NULL,
                *decoder = NULL;
     gchar bin_name[16];
@@ -156,6 +161,80 @@ GstElement *create_source_bin(gchar *uri, gint index) {
     return bin;
 }
 
+static GstElement *create_rtsp_sink_bin(gchar *uri, gint index) {
+    GstElement *bin = NULL, *encoder = NULL, *parser = NULL,
+               *queue = NULL, *sink = NULL;
+    gchar buffer[20];
+    snprintf(buffer, 20, "sink-bin-%1d", index);
+
+    bin = gst_bin_new(buffer);
+    encoder = gst_element_factory_make("nvv4l2h264enc", "encoder");
+    parser = gst_element_factory_make("h264parse", "parser");
+    queue = gst_element_factory_make("queue", "queue");
+    sink = gst_element_factory_make("rtspclientsink", "sink");
+
+    if (!bin || !encoder || !parser || !queue || !sink) {
+        g_print("Cannot create rtsp source bin for uri = %s", uri);
+        if (bin) gst_object_unref(bin);
+        if (encoder) gst_object_unref(encoder);
+        if (parser) gst_object_unref(parser);
+        if (queue) gst_object_unref(queue);
+        if (sink) gst_object_unref(sink);
+        return NULL;
+    }
+
+    gst_bin_add_many(GST_BIN(bin), encoder, parser, queue, sink, NULL);
+
+    g_object_set(G_OBJECT(sink), "location", uri, NULL);
+
+    GstPad *encoder_sink = gst_element_get_static_pad(encoder, "sink");
+    GstPad *ghost_pad = gst_ghost_pad_new("sink", encoder_sink);
+    gst_object_unref(encoder_sink);
+
+    if (!ghost_pad) {
+        g_print("Failed to create ghost pad for %s\n", gst_element_get_name(bin));
+        gst_object_unref(bin);
+        return NULL;
+    }
+
+    if (!gst_element_add_pad(bin, ghost_pad)) {
+        g_printerr ("Failed to add ghost pad in %s\n", gst_element_get_name(bin));
+        gst_object_unref(bin);
+        return NULL;
+    }
+
+    if (!gst_element_link_many(encoder, parser, queue, NULL)){
+        g_printerr("Cannot link elements.\n");
+        gst_object_unref(bin);
+        return NULL;
+    }
+
+    GstPad *queue_src = gst_element_get_static_pad(queue, "src");
+    if (!queue_src) {
+        g_printerr ("Failed to get static pad of %s\n", gst_element_get_name(queue));
+        gst_object_unref(bin);
+        return NULL;
+    }
+
+    snprintf(buffer, 17, "sink_%1d", index);
+    GstPad *sink_pad = gst_element_request_pad_simple(sink, buffer);
+    if (!sink_pad) {
+        g_printerr ("Failed to request sink pad of %s\n", gst_element_get_name(sink));
+        gst_object_unref(bin);
+        return NULL;
+    }
+
+    if (gst_pad_link(queue_src, sink_pad) != GST_PAD_LINK_OK) {
+        g_printerr("Cannot link %s and %s in the %s\n", gst_element_get_name(parser), gst_element_get_name(sink), gst_element_get_name(bin));
+        gst_object_unref(bin);
+        return NULL;
+    }
+    gst_object_unref(queue_src);
+    gst_object_unref(sink_pad);
+
+    return bin;
+}
+
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
     GstElement *pipeline = NULL, *streammux = NULL, *pgie = NULL,
@@ -192,6 +271,7 @@ int main(int argc, char *argv[]) {
     sink = gst_element_factory_make("filesink", "sink");
 #else
     sink = gst_element_factory_make("autovideosink", "sink");
+    sink = create_rtsp_sink_bin("rtspt://localhost:8554/output", 0);
 #endif
 
     // TODO: add all elements
