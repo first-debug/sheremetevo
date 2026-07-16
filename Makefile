@@ -53,7 +53,7 @@ $(TARGET): $(BUILD_OBJS) Makefile | $(BUILD_DIR)
 	$(CC) -o $@ $(BUILD_OBJS) $(LIBS)
 
 gen-graph: $(TARGET) | $(GRAPHS_DIR)
-	GST_DEBUG_DUMP_DOT_DIR=graphs $(MAKE) run
+	GST_DEBUG_DUMP_DOT_DIR=graphs $(MAKE) run-local-src
 
 graph:
 	dot -Tpng graphs/sheremetevo.dot -o graphs/sheremetevo.png
