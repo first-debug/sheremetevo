@@ -199,27 +199,25 @@ static GstElement *create_source_bin(gchar *uri, gint index) {
 
 static GstElement *create_rtsp_sink_bin(gchar *uri, gint index) {
     GstElement *bin = NULL, *encoder = NULL, *parser = NULL,
-               *queue = NULL, *sink = NULL;
+               *sink = NULL;
     gchar buffer[20];
     snprintf(buffer, 20, "sink-bin-%1d", index);
 
     bin = gst_bin_new(buffer);
     encoder = gst_element_factory_make("nvv4l2h264enc", "encoder");
     parser = gst_element_factory_make("h264parse", "parser");
-    queue = gst_element_factory_make("queue", "queue");
     sink = gst_element_factory_make("rtspclientsink", "sink");
 
-    if (!bin || !encoder || !parser || !queue || !sink) {
+    if (!bin || !encoder || !parser || !sink) {
         g_print("Cannot create rtsp source bin for uri = %s", uri);
         if (bin) gst_object_unref(bin);
         if (encoder) gst_object_unref(encoder);
         if (parser) gst_object_unref(parser);
-        if (queue) gst_object_unref(queue);
         if (sink) gst_object_unref(sink);
         return NULL;
     }
 
-    gst_bin_add_many(GST_BIN(bin), encoder, parser, queue, sink, NULL);
+    gst_bin_add_many(GST_BIN(bin), encoder, parser, sink, NULL);
 
     g_object_set(G_OBJECT(sink), "location", uri, NULL);
 
@@ -239,15 +237,15 @@ static GstElement *create_rtsp_sink_bin(gchar *uri, gint index) {
         return NULL;
     }
 
-    if (!gst_element_link_many(encoder, parser, queue, NULL)){
+    if (!gst_element_link_many(encoder, parser, NULL)){
         g_printerr("Cannot link elements.\n");
         gst_object_unref(bin);
         return NULL;
     }
 
-    GstPad *queue_src = gst_element_get_static_pad(queue, "src");
-    if (!queue_src) {
-        g_printerr ("Failed to get static pad of %s\n", gst_element_get_name(queue));
+    GstPad *parser_src = gst_element_get_static_pad(parser, "src");
+    if (!parser_src) {
+        g_printerr ("Failed to get static pad of %s\n", gst_element_get_name(parser));
         gst_object_unref(bin);
         return NULL;
     }
@@ -260,12 +258,12 @@ static GstElement *create_rtsp_sink_bin(gchar *uri, gint index) {
         return NULL;
     }
 
-    if (gst_pad_link(queue_src, sink_pad) != GST_PAD_LINK_OK) {
+    if (gst_pad_link(parser_src, sink_pad) != GST_PAD_LINK_OK) {
         g_printerr("Cannot link %s and %s in the %s\n", gst_element_get_name(parser), gst_element_get_name(sink), gst_element_get_name(bin));
         gst_object_unref(bin);
         return NULL;
     }
-    gst_object_unref(queue_src);
+    gst_object_unref(parser_src);
     gst_object_unref(sink_pad);
 
     return bin;
