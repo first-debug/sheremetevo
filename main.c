@@ -275,7 +275,8 @@ int main(int argc, char *argv[]) {
                *nvosd = NULL, *tiler = NULL, *sink = NULL;
     GstPad *src_pad = NULL, *sink_pad = NULL;
 #ifdef SAVE_TO_FILE
-    GstElement *encoder = NULL, *sink_parser = NULL, *mp4mux = NULL;
+    GstElement *nvconv = NULL, *encoder = NULL, *sink_parser = NULL,
+               *formatmux = NULL;
 #endif
     GstBus *bus = NULL;
     guint bus_watch_id;
@@ -297,10 +298,10 @@ int main(int argc, char *argv[]) {
 
     tiler = gst_element_factory_make("nvmultistreamtiler", "tiler");
 #if SAVE_TO_FILE
-    // TODO: switch media type from mp4 to another witch not need EOS to valid save.
+    nvconv = gst_element_factory_make("nvvideoconvert", "nvconv");
     encoder = gst_element_factory_make("nvv4l2h264enc", "encoder");
     sink_parser = gst_element_factory_make("h264parse", "sink_parser");
-    mp4mux = gst_element_factory_make("mp4mux", "mp4mux");
+    formatmux = gst_element_factory_make("matroskamux", "formatmux");
     sink = gst_element_factory_make("filesink", "sink");
 #else
     sink = create_rtsp_sink_bin(argv[2], 0);
@@ -314,7 +315,12 @@ int main(int argc, char *argv[]) {
     gst_bin_add_many(GST_BIN(pipeline), streammux, pgie, nvosd,
             tiler, sink, NULL);
 #if SAVE_TO_FILE
-    gst_bin_add_many(GST_BIN(pipeline), encoder, sink_parser, mp4mux, NULL);
+    if (!nvconv || !encoder || !sink_parser || !formatmux) {
+        g_printerr("Cannot create some modules for saving to file.\n");
+        return -1;
+    }
+
+    gst_bin_add_many(GST_BIN(pipeline), nvconv, encoder, sink_parser, formatmux, NULL);
 #endif
 
     g_object_set(G_OBJECT(streammux),
@@ -331,8 +337,11 @@ int main(int argc, char *argv[]) {
             "width", 2720,
             "height", 4096, NULL);
 
+    // TODO: add one more option to sink (file, display, rtsp, none)
 #if SAVE_TO_FILE
-    g_object_set(G_OBJECT(sink), "location", "media/output.mp4", NULL);
+    g_object_set(G_OBJECT(sink), "location", "media/output.mkv", NULL);
+#else
+    // g_object_set(G_OBJECT(sink), "sync", FALSE, NULL);
 #endif
 
     // Dynamic linking
@@ -360,7 +369,7 @@ int main(int argc, char *argv[]) {
 
 #if SAVE_TO_FILE
     src_pad = gst_element_get_static_pad(sink_parser, "src");
-    sink_pad = gst_element_request_pad_simple(mp4mux, "video_0");
+    sink_pad = gst_element_request_pad_simple(formatmux, "video_0");
 
     if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
         g_printerr("Cannot link sink_parser and mp4mux.\n");
@@ -378,11 +387,11 @@ int main(int argc, char *argv[]) {
     }
 
 #if SAVE_TO_FILE
-    if (!gst_element_link_many(nvosd, encoder, sink_parser, NULL)) {
+    if (!gst_element_link_many(tiler, encoder, sink_parser, NULL)) {
         g_printerr("Cannot link elements.\n");
         return -1;
     }
-    if (!gst_element_link_many(mp4mux, sink, NULL)) {
+    if (!gst_element_link_many(formatmux, sink, NULL)) {
         g_printerr("Cannot link mp4mux and sink.\n");
         return -1;
     }
