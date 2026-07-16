@@ -1,4 +1,5 @@
 #include "gst/gstcaps.h"
+#include "gst/gstcapsfeatures.h"
 #include "gst/gstelement.h"
 #include "gst/gstelementfactory.h"
 #include "gst/gstobject.h"
@@ -109,12 +110,11 @@ static gboolean cb_removepad(GstElement *bin, GstPad *pad, gpointer data) {
     return TRUE;
 }
 
-// TODO: rtspsrc может обрабатывать несколько потоков, исходя из
-//  этого - можно создавать бин только для конвертации rtp
-//  пакетов в raw видео.
 static GstElement *create_source_bin(gchar *uri, gint index) {
     GstElement *bin = NULL, *source = NULL, *depay = NULL,
-               *decoder = NULL;
+               *decoder = NULL, *filter = NULL, *converter = NULL;
+    GstCaps *caps = NULL;
+    GstCapsFeatures *caps_feature = NULL;
     gchar bin_name[16];
     snprintf(bin_name, 15, "source-bin-%1d", index);
 
@@ -122,39 +122,65 @@ static GstElement *create_source_bin(gchar *uri, gint index) {
     source = gst_element_factory_make("rtspsrc", "source");
     depay = gst_element_factory_make("rtph264depay", "depay");
     decoder = gst_element_factory_make("nvv4l2decoder", "decoder");
+    filter = gst_element_factory_make("capsfilter", "filter");
+    caps = gst_caps_new_simple("video/x-raw",
+            "format", G_TYPE_STRING, "RGBA",
+            "width", G_TYPE_INT, "1728",
+            "height", G_TYPE_INT, "2752",
+            "framerate", GST_TYPE_FRACTION, 25, 2,
+            NULL);
+    caps_feature = gst_caps_features_new("memory:NVMM", NULL);
+    converter = gst_element_factory_make("nvvideoconvert", "convert");
 
-    if (!bin || !source || !depay || !decoder) {
+    if (!bin || !source || !depay || !decoder || !filter || !caps || !converter) {
         g_print("Cannot create rtsp source bin for uri = %s\n", uri);
         if (bin) gst_object_unref(bin);
         if (source) gst_object_unref(source);
         if (depay) gst_object_unref(depay);
         if (decoder) gst_object_unref(decoder);
+        if (filter) gst_object_unref(filter);
+        if (caps) gst_object_unref(caps);
+        if (converter) gst_object_unref(converter);
         return NULL;
     }
 
-    gst_bin_add_many(GST_BIN(bin), source, depay, decoder, NULL);
-
     g_object_set(G_OBJECT(source), "location", uri, NULL);
+    g_object_set(G_OBJECT(source), "rtp-blocksize", 1440, NULL);
+    // g_object_set(G_OBJECT(source), "async-handling", TRUE, NULL);
+    // g_object_set(G_OBJECT(source), "buffer-mode", 3, NULL);
+    // g_object_set(G_OBJECT(source), "latency", 10000, NULL);
+    // g_object_set(G_OBJECT(source), "drop-on-latency", TRUE, NULL);
     // g_object_set(G_OBJECT(source), "use-buffering", TRUE, NULL);
+
+    g_object_set(G_OBJECT(decoder), "disable-dpb", TRUE, NULL);
+    g_object_set(G_OBJECT(decoder), "discard-corrupted-frames", TRUE, NULL);
+    g_object_set(G_OBJECT(decoder), "low-latency-mode", TRUE, NULL);
+
+    g_object_set(G_OBJECT(converter), "flip_method", 1, NULL);
+
+    g_object_set(G_OBJECT(filter), "caps", caps, NULL);
+    gst_caps_unref(caps);
 
     g_signal_connect(source, "pad-added", G_CALLBACK(cb_newpad), depay);
     g_signal_connect(source, "pad-removed", G_CALLBACK(cb_removepad), NULL);
 
-    if (!gst_element_link_many(depay, decoder, NULL)){
+    gst_bin_add_many(GST_BIN(bin), source, depay, decoder, converter, filter, NULL);
+
+    if (!gst_element_link_many(depay, decoder, converter, NULL)){
         g_printerr("Cannot link elements.\n");
         gst_object_unref(bin);
         return NULL;
     }
 
-    GstPad *decoder_src = gst_element_get_static_pad(decoder, "src");
-    if (!decoder_src) {
-        g_printerr ("Failed to get static pad of %s\n", gst_element_get_name(decoder));
+    GstPad *bin_src = gst_element_get_static_pad(converter, "src");
+    if (!bin_src) {
+        g_printerr ("Failed to get static pad of %s\n", gst_element_get_name(converter));
         gst_object_unref(bin);
         return NULL;
     }
 
-    GstPad *ghost_pad = gst_ghost_pad_new("src", decoder_src);
-    gst_object_unref(decoder_src);
+    GstPad *ghost_pad = gst_ghost_pad_new("src", bin_src);
+    gst_object_unref(bin_src);
 
     if (!ghost_pad) {
         g_print("Failed to create ghost pad for %s\n", gst_element_get_name(bin));
