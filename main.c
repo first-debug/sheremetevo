@@ -107,8 +107,6 @@ static gboolean cb_removepad(GstElement *bin, GstPad *pad, gpointer data) {
     g_free(bin_name);
     g_free(pad_name);
     return TRUE;
-    gst_object_unref(structure);
-    gst_caps_unref(new_pad_caps);
 }
 
 // TODO: rtspsrc может обрабатывать несколько потоков, исходя из
@@ -118,7 +116,7 @@ static GstElement *create_source_bin(gchar *uri, gint index) {
     GstElement *bin = NULL, *source = NULL, *depay = NULL,
                *decoder = NULL;
     gchar bin_name[16];
-    snprintf(bin_name, 15, "source-bin-%01d", index);
+    snprintf(bin_name, 15, "source-bin-%1d", index);
 
     bin = gst_bin_new(bin_name);
     source = gst_element_factory_make("rtspsrc", "source");
@@ -126,7 +124,7 @@ static GstElement *create_source_bin(gchar *uri, gint index) {
     decoder = gst_element_factory_make("nvv4l2decoder", "decoder");
 
     if (!bin || !source || !depay || !decoder) {
-        g_print("Cannot create rtsp source bin for uri = %s", uri);
+        g_print("Cannot create rtsp source bin for uri = %s\n", uri);
         if (bin) gst_object_unref(bin);
         if (source) gst_object_unref(source);
         if (depay) gst_object_unref(depay);
