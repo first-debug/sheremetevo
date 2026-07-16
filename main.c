@@ -11,24 +11,32 @@
 
 #include "gst/gstutils.h"
 
+typedef struct {
+    GMainLoop *loop;
+    GstElement *pipeline;
+} BusCallData;
+
 static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data) {
-    GMainLoop *loop = (GMainLoop *)data;
+    BusCallData *data_struct = (BusCallData *)data;
     switch (GST_MESSAGE_TYPE(msg)) {
         case GST_MESSAGE_EOS:
             g_print("End of stream.\n");
-            g_main_loop_quit(loop);
+            g_main_loop_quit(data_struct->loop);
             break;
         case GST_MESSAGE_ERROR: {
             gchar *debug;
             GError *error;
             gst_message_parse_error(msg, &error, &debug);
-            g_printerr("Error: %s\n", error->message);
+            g_printerr("Error: %s\n%s\n", error->message, debug);
             g_error_free(error);
             g_free(debug);
-            g_main_loop_quit(loop);
+            g_main_loop_quit(data_struct->loop);
             break;
         }
         case GST_MESSAGE_STATE_CHANGED: {
+            if (GST_MESSAGE_SRC (msg) != GST_OBJECT (data_struct->pipeline))
+                return TRUE;
+
             GstState old_state, new_state, pending_state;
             gst_message_parse_state_changed(msg, &old_state, &new_state, &pending_state);
 
@@ -37,8 +45,24 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data) {
                     gst_element_state_get_name(pending_state));
             break;
         }
-        default:
+        case GST_MESSAGE_ELEMENT: {
+            const GstStructure *structer = gst_message_get_structure(msg);
+            if (structer == NULL)
+                return TRUE;
+            const gchar *elem_name = gst_structure_get_name(structer);
+            GstObject *src_object = GST_MESSAGE_SRC(msg);
+
+            gchar *src_name = gst_object_get_name(src_object);
+            gchar *struct_str = gst_structure_to_string(structer);
+
+            g_print("Catched MESSAGE_ELEMENT from = %s\n", src_name);
+            g_print("%s\n", struct_str);
+            g_free(src_name);
+            g_free(struct_str);
             break;
+        }
+        default: {
+        }
     }
     return TRUE;
 }
@@ -260,7 +284,8 @@ int main(int argc, char *argv[]) {
 
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "sheremetevo");
     bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
-    bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);
+    BusCallData data = { loop, pipeline };
+    bus_watch_id = gst_bus_add_watch(bus, bus_call, &data);
     gst_object_unref(bus);
 
     g_print("\nStarting pipline...\n");
