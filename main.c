@@ -101,7 +101,7 @@ static void cb_newpad(GstElement *bin, GstPad *pad, gpointer data) {
 }
 
 static gboolean cb_removepad(GstElement *bin, GstPad *pad, gpointer data) {
-    gchar *bin_name = GST_OBJECT_NAME(bin);
+    gchar *bin_name = gst_object_get_name(GST_OBJECT(bin));
     gchar *pad_name = gst_pad_get_name(pad);
 
     g_print("Remove pad %s from %s\n", pad_name, bin_name);
@@ -191,8 +191,12 @@ static GstElement *create_source_bin(gchar *uri, gint index) {
     }
 
     GstPad *bin_src = gst_element_get_static_pad(out_filter, "src");
+    gchar *elem_name;
     if (!bin_src) {
-        g_printerr ("Failed to get static pad of %s\n", gst_element_get_name(converter));
+        elem_name = gst_element_get_name(out_filter);
+        g_printerr("Failed to get static pad of %s\n", elem_name);
+
+        g_free(elem_name);
         gst_object_unref(bin);
         return NULL;
     }
@@ -201,13 +205,19 @@ static GstElement *create_source_bin(gchar *uri, gint index) {
     gst_object_unref(bin_src);
 
     if (!ghost_pad) {
-        g_print("Failed to create ghost pad for %s\n", gst_element_get_name(bin));
+        elem_name = gst_element_get_name(bin);
+        g_print("Failed to create ghost pad for %s\n", elem_name);
+
+        g_free(elem_name);
         gst_object_unref(bin);
         return NULL;
     }
 
     if (!gst_element_add_pad(bin, ghost_pad)) {
-        g_printerr ("Failed to add ghost pad in %s\n", gst_element_get_name(bin));
+        elem_name = gst_element_get_name(bin);
+        g_printerr ("Failed to add ghost pad in %s\n", elem_name);
+
+        g_free(elem_name);
         gst_object_unref(bin);
         return NULL;
     }
@@ -227,11 +237,12 @@ static GstElement *create_rtsp_sink_bin(gchar *uri, gint index) {
     sink = gst_element_factory_make("rtspclientsink", "sink");
 
     if (!bin || !encoder || !parser || !sink) {
-        g_print("Cannot create rtsp source bin for uri = %s", uri);
+        g_print("Cannot create rtsp source bin for uri = %s\n", uri);
         if (bin) gst_object_unref(bin);
         if (encoder) gst_object_unref(encoder);
         if (parser) gst_object_unref(parser);
         if (sink) gst_object_unref(sink);
+
         return NULL;
     }
 
@@ -243,27 +254,38 @@ static GstElement *create_rtsp_sink_bin(gchar *uri, gint index) {
     GstPad *ghost_pad = gst_ghost_pad_new("sink", encoder_sink);
     gst_object_unref(encoder_sink);
 
+    gchar *elem_name;
+
     if (!ghost_pad) {
-        g_print("Failed to create ghost pad for %s\n", gst_element_get_name(bin));
+        elem_name = gst_element_get_name(bin);
+        g_print("Failed to create ghost pad for %s\n", elem_name);
+
+        g_free(elem_name);
         gst_object_unref(bin);
         return NULL;
     }
 
     if (!gst_element_add_pad(bin, ghost_pad)) {
-        g_printerr ("Failed to add ghost pad in %s\n", gst_element_get_name(bin));
+        elem_name = gst_element_get_name(bin);
+        g_printerr ("Failed to add ghost pad in %s\n", elem_name);
+
+        g_free(elem_name);
         gst_object_unref(bin);
         return NULL;
     }
 
     if (!gst_element_link_many(encoder, parser, NULL)){
-        g_printerr("Cannot link elements.\n");
+        g_printerr("Cannot link elements in rtsp sink for uri = %s.\n", uri);
         gst_object_unref(bin);
         return NULL;
     }
 
     GstPad *parser_src = gst_element_get_static_pad(parser, "src");
     if (!parser_src) {
-        g_printerr ("Failed to get static pad of %s\n", gst_element_get_name(parser));
+        elem_name = gst_element_get_name(parser);
+        g_printerr ("Failed to get static pad of %s\n", elem_name);
+
+        g_free(elem_name);
         gst_object_unref(bin);
         return NULL;
     }
@@ -271,13 +293,27 @@ static GstElement *create_rtsp_sink_bin(gchar *uri, gint index) {
     snprintf(buffer, 17, "sink_%1d", index);
     GstPad *sink_pad = gst_element_request_pad_simple(sink, buffer);
     if (!sink_pad) {
-        g_printerr ("Failed to request sink pad of %s\n", gst_element_get_name(sink));
+        elem_name = gst_element_get_name(sink);
+        g_printerr ("Failed to request sink pad of %s\n", elem_name);
+
+        g_free(elem_name);
         gst_object_unref(bin);
         return NULL;
     }
 
     if (gst_pad_link(parser_src, sink_pad) != GST_PAD_LINK_OK) {
-        g_printerr("Cannot link %s and %s in the %s\n", gst_element_get_name(parser), gst_element_get_name(sink), gst_element_get_name(bin));
+        elem_name = gst_element_get_name(parser);
+        g_printerr ("Cannot link %s and ", elem_name);
+        g_free(elem_name);
+
+        elem_name = gst_element_get_name(sink);
+        g_printerr("%s in the ", elem_name);
+        g_free(elem_name);
+
+        elem_name = gst_element_get_name(bin);
+        g_printerr("%s\n", elem_name);
+        g_free(elem_name);
+
         gst_object_unref(bin);
         return NULL;
     }
