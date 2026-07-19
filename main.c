@@ -348,9 +348,9 @@ int main(int argc, char *argv[]) {
 
     streammux = gst_element_factory_make("nvstreammux", "stream-muxer");
     pgie = gst_element_factory_make("nvinfer", "primary-infer");
-    nvosd = gst_element_factory_make("nvdsosd", "nvosd");
-
     tiler = gst_element_factory_make("nvmultistreamtiler", "tiler");
+
+    nvosd = gst_element_factory_make("nvdsosd", "nvosd");
 #if SAVE_TO_FILE
     nvconv = gst_element_factory_make("nvvideoconvert", "nvconv");
     encoder = gst_element_factory_make("nvv4l2h264enc", "encoder");
@@ -361,13 +361,13 @@ int main(int argc, char *argv[]) {
     sink = create_rtsp_sink_bin(argv[2], 0);
 #endif
 
-    if (!pipeline || !streammux || !pgie || !nvosd || !tiler || !sink) {
+    if (!pipeline || !streammux || !pgie || !tiler || !nvosd || !sink) {
         g_printerr("Cannot create some modules.\n");
         return -1;
     }
 
-    gst_bin_add_many(GST_BIN(pipeline), streammux, pgie, nvosd,
-            tiler, sink, NULL);
+    gst_bin_add_many(GST_BIN(pipeline), streammux, pgie,
+            tiler, nvosd, sink, NULL);
 #if SAVE_TO_FILE
     if (!nvconv || !encoder || !sink_parser || !formatmux) {
         g_printerr("Cannot create some modules for saving to file.\n");
@@ -435,13 +435,13 @@ int main(int argc, char *argv[]) {
     gst_object_unref(sink_pad);
 #endif
 
-    if (!gst_element_link_many(streammux, pgie, nvosd, tiler, NULL)) {
+    if (!gst_element_link_many(streammux, pgie, tiler, nvosd, NULL)) {
         g_printerr("Cannot link elements.\n");
         return -1;
     }
 
 #if SAVE_TO_FILE
-    if (!gst_element_link_many(tiler, encoder, sink_parser, NULL)) {
+    if (!gst_element_link_many(nvosd, encoder, sink_parser, NULL)) {
         g_printerr("Cannot link elements.\n");
         return -1;
     }
@@ -450,7 +450,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 #else
-    if (!gst_element_link_many(tiler, sink, NULL)) {
+    if (!gst_element_link_many(nvosd, sink, NULL)) {
         g_printerr("Cannot link tiler and sink.\n");
         return -1;
     }
