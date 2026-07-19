@@ -153,7 +153,7 @@ static GstElement *create_source_bin(gchar *uri, gint index) {
     g_object_set(G_OBJECT(source), "rtp-blocksize", 1440, NULL);
     // g_object_set(G_OBJECT(source), "async-handling", TRUE, NULL);
     // g_object_set(G_OBJECT(source), "buffer-mode", 3, NULL);
-    // g_object_set(G_OBJECT(source), "latency", 10000, NULL);
+    g_object_set(G_OBJECT(source), "latency", 200, NULL);
     // g_object_set(G_OBJECT(source), "drop-on-latency", TRUE, NULL);
     // g_object_set(G_OBJECT(source), "use-buffering", TRUE, NULL);
 
