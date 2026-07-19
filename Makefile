@@ -39,16 +39,19 @@ LIBS:= $(shell pkg-config --libs $(PKGS)) \
 
 all: $(TARGET)
 
-run-remote-src: $(TARGET)
-	$(TARGET) $(CONFIGS_DIR)/config_infer_primary.txt \
-		rtspt://192.168.10.185:8554/output \
-		rtspt://192.168.10.185:8554/svo1 \
-		rtspt://192.168.10.185:8554/svo2 \
-		rtspt://192.168.10.185:8554/svo3 \
-		rtspt://192.168.10.185:8554/svo4
+run-single-src: $(TARGET)
+	$(TARGET) $(CONFIGS_DIR)/config_infer_primary_yolo.txt \
+		rtspt://192.168.0.181:8554/output \
+		rtspt://192.168.0.181:8554/svo1
 
-run-local-src: $(TARGET)
-	$(TARGET) $(CONFIGS_DIR)/config_infer_primary.txt \
+run-multi-src: $(TARGET)
+	$(TARGET) $(CONFIGS_DIR)/config_infer_primary_yolo.txt \
+		rtspt://192.168.0.181:8554/output \
+		rtspt://192.168.0.181:8554/svo1 \
+		rtspt://192.168.0.181:8554/svo2 \
+		rtspt://192.168.0.181:8554/svo3 \
+		rtspt://192.168.0.181:8554/svo4
+
 		rtspt://192.168.10.185:8554/output \
 		rtspt://192.168.10.185:8554/live \
 		rtspt://192.168.10.185:8554/live \
@@ -71,7 +74,7 @@ $(TARGET): $(BUILD_OBJS) Makefile | $(BUILD_DIR)
 	$(CC) -o $@ $(BUILD_OBJS) $(LIBS)
 
 gen-graph: $(TARGET) | $(GRAPHS_DIR)
-	GST_DEBUG_DUMP_DOT_DIR=graphs $(MAKE) run-local-src
+	GST_DEBUG_DUMP_DOT_DIR=graphs $(MAKE) run-multi-src
 
 graph:
 	dot -Tpng graphs/sheremetevo.dot -o graphs/sheremetevo.png
