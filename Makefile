@@ -3,6 +3,7 @@ APP:= sheremetevo-app
 BUILD_DIR:= build
 CONFIGS_DIR:= configs
 GRAPHS_DIR:= graphs
+MEDIA_DIR:= media
 
 TARGET:= $(BUILD_DIR)/$(APP)
 
@@ -58,6 +59,9 @@ $(BUILD_DIR):
 	mkdir -p $@
 
 $(GRAPHS_DIR):
+	mkdir -p $@
+
+$(MEDIA_DIR):
 	mkdir -p $@
 
 $(BUILD_DIR)/%.o: %.c $(INCS) Makefile | $(BUILD_DIR)
