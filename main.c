@@ -380,7 +380,8 @@ int main(int argc, char *argv[]) {
     g_object_set(G_OBJECT(streammux),
             "batch-size", argc - 3,
             "width", 1728,
-            "height", 2752, NULL);
+            "height", 2752,
+            NULL);
             // "width", 854,
             // "height", 480, NULL);
 
@@ -405,6 +406,11 @@ int main(int argc, char *argv[]) {
         index = i - 3;
         src_bin = create_source_bin(argv[i], index);
 
+        if (src_bin == NULL) {
+            g_printerr("Cannot create rtsp source bin for uri = %s\n", argv[i]);
+            continue;
+        }
+
         gst_bin_add_many(GST_BIN(pipeline), src_bin, NULL);
 
         snprintf(buffer, 17, "sink_%1d", index);
@@ -412,13 +418,19 @@ int main(int argc, char *argv[]) {
         sink_pad = gst_element_request_pad_simple(streammux, buffer);
 
         if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
-            g_printerr("Cannot link decoder_src and streammux.\n");
+            g_printerr("Cannot link bin_src and streammux.\n");
             gst_object_unref(src_pad);
             gst_object_unref(sink_pad);
             return -1;
         }
+
         gst_object_unref(src_pad);
         gst_object_unref(sink_pad);
+    }
+
+    if (streammux->numsinkpads == 0) {
+        g_printerr("Couldn't create at least one source.\n");
+        return -1;
     }
 
 #if SAVE_TO_FILE
