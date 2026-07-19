@@ -2,3 +2,5 @@
 build/
 media/
 graphs/
+models/*
+!models/*.pt
