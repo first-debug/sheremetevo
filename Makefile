@@ -70,8 +70,13 @@ $(MEDIA_DIR):
 $(BUILD_DIR)/%.o: %.c $(INCS) Makefile | $(BUILD_DIR)
 	$(CC) -c -o $@ $(CFLAGS) $<
 
+ifeq ($(SAVE_TO), file)
+$(TARGET): $(BUILD_OBJS) Makefile | $(BUILD_DIR) $(MEDIA_DIR)
+	$(CC) -o $@ $(BUILD_OBJS) $(LIBS)
+else
 $(TARGET): $(BUILD_OBJS) Makefile | $(BUILD_DIR)
 	$(CC) -o $@ $(BUILD_OBJS) $(LIBS)
+endif
 
 gen-graph: $(TARGET) | $(GRAPHS_DIR)
 	GST_DEBUG_DUMP_DOT_DIR=graphs $(MAKE) run-multi-src
