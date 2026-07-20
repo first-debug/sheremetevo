@@ -17,6 +17,9 @@ gboolean cb_removepad(GstElement *bin, GstPad *pad, gpointer data);
 GstElement *create_source_bin(gchar *uri, gint index);
 GstElement *create_rtsp_sink_bin(gchar *uri, gint index);
 
+GstPadProbeReturn meta_prober(GstPad * pad, GstPadProbeInfo * info, gpointer u_data);
+void set_prober(GstElement*, gchar *pad_name);
+
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
     GstElement *pipeline = NULL,
