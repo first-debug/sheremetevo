@@ -19,8 +19,12 @@ GstElement *create_rtsp_sink_bin(gchar *uri, gint index);
 
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
-    GstElement *pipeline = NULL, *streammux = NULL, *pgie = NULL,
-               *nvosd = NULL, *tiler = NULL, *sink = NULL;
+    GstElement *pipeline = NULL,
+               *streammux = NULL,
+               *pgie = NULL,
+               *nvosd = NULL,
+               *tiler = NULL,
+               *sink = NULL;
     GstPad *src_pad = NULL, *sink_pad = NULL;
 #ifdef SAVE_TO_FILE
     GstElement *nvconv = NULL, *encoder = NULL, *sink_parser = NULL,
@@ -84,7 +88,8 @@ int main(int argc, char *argv[]) {
     // 3656 5504
     g_object_set(G_OBJECT(tiler),
             "width", 2720,
-            "height", 4096, NULL);
+            "height", 4096,
+            NULL);
 
     // TODO: add one more option to sink (file, display, rtsp, none)
 #ifdef SAVE_TO_FILE
