@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    if (!gst_element_link_many(streammux, pgie, tiler, nvosd, NULL)) {
+    if (!gst_element_link_many(streammux, pgie, tiler, nvosd, sink, NULL)) {
         g_printerr("Cannot link elements.\n");
         return -1;
     }
