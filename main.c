@@ -68,20 +68,20 @@ int main(int argc, char *argv[]) {
 
     // Dynamic linking
     gchar buffer[20];
-    GstElement *src_bin = NULL;
+    GstElement *new_bin = NULL;
     for (int i = 3, index; i < argc; i++) {
         index = i - 3;
-        src_bin = create_source_bin(argv[i], index);
+        new_bin = create_source_bin(argv[i], index);
 
-        if (src_bin == NULL) {
+        if (new_bin == NULL) {
             g_printerr("Cannot create rtsp source bin for uri = %s\n", argv[i]);
             continue;
         }
 
-        gst_bin_add_many(GST_BIN(pipeline), src_bin, NULL);
+        gst_bin_add_many(GST_BIN(pipeline), new_bin, NULL);
 
         snprintf(buffer, 17, "sink_%1d", index);
-        src_pad = gst_element_get_static_pad(src_bin, "src");
+        src_pad = gst_element_get_static_pad(new_bin, "src");
         sink_pad = gst_element_request_pad_simple(streammux, buffer);
 
         if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
@@ -102,10 +102,6 @@ int main(int argc, char *argv[]) {
 
     if (!gst_element_link_many(streammux, pgie, tiler, nvosd, NULL)) {
         g_printerr("Cannot link elements.\n");
-        return -1;
-    }
-
-    }
         return -1;
     }
 
