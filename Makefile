@@ -25,7 +25,8 @@ BUILD_OBJS:= $(addprefix $(BUILD_DIR)/, $(OBJS))
 
 CFLAGS+= $(shell pkg-config --cflags $(PKGS)) \
 		 -I/opt/nvidia/deepstream/deepstream/sources/includes \
-		 -L/opt/nvidia/deepstream/deepstream/lib -lnvdsgst_meta -lnvds_meta
+		 -L/opt/nvidia/deepstream/deepstream/lib -lnvdsgst_meta -lnvds_meta \
+		 -L$(BUILD_DIR)
 
 ifeq ($(SAVE_TO), file)
 	CFLAGS+= -DSAVE_TO_FILE

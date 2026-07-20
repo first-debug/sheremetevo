@@ -12,3 +12,4 @@ CompileFlags:
   - -L/opt/nvidia/deepstream/deepstream/lib
   - -lnvdsgst_meta
   - -lnvds_meta
+  - -Ibuild
