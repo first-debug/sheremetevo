@@ -215,7 +215,7 @@ GstElement *create_source_bin(gchar *uri, gint index) {
     return bin;
 }
 
-GstElement *create_rtsp_sink_bin(gchar *uri, gint index) {
+GstElement *create_sink_bin(gchar *uri, gint index) {
     GstElement *bin = NULL, *encoder = NULL, *parser = NULL,
                *sink = NULL;
     gchar buffer[20];

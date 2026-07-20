@@ -15,7 +15,7 @@ gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data);
 void cb_newpad(GstElement *bin, GstPad *pad, gpointer data);
 gboolean cb_removepad(GstElement *bin, GstPad *pad, gpointer data);
 GstElement *create_source_bin(gchar *uri, gint index);
-GstElement *create_rtsp_sink_bin(gchar *uri, gint index);
+GstElement *create_sink_bin(gchar *uri, gint index);
 
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
     formatmux = gst_element_factory_make("matroskamux", "formatmux");
     sink = gst_element_factory_make("filesink", "sink");
 #else
-    sink = create_rtsp_sink_bin(argv[2], 0);
+    sink = create_sink_bin(argv[2], 0);
 #endif
 
     if (!pipeline || !streammux || !pgie || !tiler || !nvosd || !sink) {
