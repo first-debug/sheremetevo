@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
     tiler = gst_element_factory_make("nvmultistreamtiler", "tiler");
 
     nvosd = gst_element_factory_make("nvdsosd", "nvosd");
-#if SAVE_TO_FILE
+#ifdef SAVE_TO_FILE
     nvconv = gst_element_factory_make("nvvideoconvert", "nvconv");
     encoder = gst_element_factory_make("nvv4l2h264enc", "encoder");
     sink_parser = gst_element_factory_make("h264parse", "sink_parser");
@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
 
     gst_bin_add_many(GST_BIN(pipeline), streammux, pgie,
             tiler, nvosd, sink, NULL);
-#if SAVE_TO_FILE
+#ifdef SAVE_TO_FILE
     if (!nvconv || !encoder || !sink_parser || !formatmux) {
         g_printerr("Cannot create some modules for saving to file.\n");
         return -1;
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
             "height", 4096, NULL);
 
     // TODO: add one more option to sink (file, display, rtsp, none)
-#if SAVE_TO_FILE
+#ifdef SAVE_TO_FILE
     g_object_set(G_OBJECT(sink), "location", "media/output.mkv", NULL);
 #else
     // g_object_set(G_OBJECT(sink), "sync", FALSE, NULL);
@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-#if SAVE_TO_FILE
+#ifdef SAVE_TO_FILE
     src_pad = gst_element_get_static_pad(sink_parser, "src");
     sink_pad = gst_element_request_pad_simple(formatmux, "video_0");
 
@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-#if SAVE_TO_FILE
+#ifdef SAVE_TO_FILE
     if (!gst_element_link_many(nvosd, encoder, sink_parser, NULL)) {
         g_printerr("Cannot link elements.\n");
         return -1;
