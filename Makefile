@@ -1,5 +1,7 @@
-APP:= sheremetevo-app
+NVDS_VERSION:=9.0
+LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
+APP:= sheremetevo-app
 BUILD_DIR:= build
 CONFIGS_DIR:= configs
 GRAPHS_DIR:= graphs
@@ -7,18 +9,9 @@ MEDIA_DIR:= media
 
 TARGET:= $(BUILD_DIR)/$(APP)
 
-TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
-
-NVDS_VERSION:=9.0
-
-LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
-
 SRCS:= $(wildcard *.c)
-
 INCS:= $(wildcard *.h)
-
 PKGS:= gstreamer-1.0
-
 OBJS:= $(SRCS:.c=.o)
 
 BUILD_OBJS:= $(addprefix $(BUILD_DIR)/, $(OBJS))
@@ -27,7 +20,6 @@ CFLAGS+= $(shell pkg-config --cflags $(PKGS)) \
 		 -I/opt/nvidia/deepstream/deepstream/sources/includes \
 		 -L/opt/nvidia/deepstream/deepstream/lib -lnvdsgst_meta -lnvds_meta \
 		 -L$(BUILD_DIR)
-
 ifeq ($(SAVE_TO), file)
 	CFLAGS+= -DSAVE_TO_FILE
 endif
