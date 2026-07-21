@@ -39,7 +39,8 @@ LIBS:= $(shell pkg-config --libs $(PKGS)) \
 		-lnvds_yml_parser \
 		-lcuda \
 		-lnvbufsurface \
-		-Wl,-rpath,$(LIB_INSTALL_DIR)
+		-Wl,-rpath,$(LIB_INSTALL_DIR) \
+		-ljson-c
 
 .PHONY: all run install clean
 
