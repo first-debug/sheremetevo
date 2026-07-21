@@ -33,8 +33,13 @@ ifeq ($(SAVE_TO), file)
 endif
 
 LIBS:= $(shell pkg-config --libs $(PKGS)) \
-		-L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta -lnvds_yml_parser \
-		-lcuda -lnvbufsurface -Wl,-rpath,$(LIB_INSTALL_DIR)
+		-L$(LIB_INSTALL_DIR) \
+		-lnvdsgst_meta \
+		-lnvds_meta \
+		-lnvds_yml_parser \
+		-lcuda \
+		-lnvbufsurface \
+		-Wl,-rpath,$(LIB_INSTALL_DIR)
 
 .PHONY: all run install clean
 
