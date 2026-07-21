@@ -1,24 +1,10 @@
+#include "glib.h"
+#include "gst/gst.h"
 #include "gst/gstelement.h"
-#include "gst/gstelementfactory.h"
-#include "gst/gstobject.h"
-#include "gst/gstpad.h"
-#include "gst/gstpipeline.h"
-#include <gst/gst.h>
-#include <glib.h>
 #include <stdio.h>
 
-#include "gst/gstutils.h"
-
-#include "structs.h"
-
-gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data);
-void cb_newpad(GstElement *bin, GstPad *pad, gpointer data);
-gboolean cb_removepad(GstElement *bin, GstPad *pad, gpointer data);
-GstElement *create_source_bin(gchar *uri, gint index);
-GstElement *create_rtsp_sink_bin(gchar *uri, gint index);
-
-GstPadProbeReturn meta_prober(GstPad * pad, GstPadProbeInfo * info, gpointer u_data);
-void set_prober(GstElement*, gchar *pad_name);
+#include "bus_call.h"
+#include "custom_bins.h"
 
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
