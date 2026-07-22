@@ -14,8 +14,8 @@ typedef struct {
     double      lat;
     double      lng;
     int         object_id;
-    const char  *name;
-    double       confidence;
+    const char *name;
+    double      confidence;
     bbox_t      bbox;
 } future_t;
 
