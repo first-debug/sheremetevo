@@ -36,7 +36,7 @@ static struct json_object *future_to_json(const future_t *f)
             "confidence", json_object_new_double(f->confidence)
             );
     json_object_object_add(future,
-            "object_id", bbox_to_json(&f->bbox)
+            "bbox", bbox_to_json(&f->bbox)
             );
     return future;
 }
@@ -82,7 +82,7 @@ int serialize_message(const points_message_t *msg,
 
     size_t len = strlen(plain_json_str);
     uint8_t *buf = (uint8_t *)malloc(len > 0 ? len : 1);
-    if (buf != NULL) {
+    if (buf == NULL) {
         fprintf(stderr, "serialize_message: cannot allocate memory for plain "
                 "json string buffer");
         json_object_put(message);
