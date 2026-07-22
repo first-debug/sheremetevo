@@ -8,7 +8,8 @@ void set_probe(GstElement* element,
         GstPadProbeReturn (*prober)
         (GstPad * pad,
         GstPadProbeInfo * info,
-        gpointer u_data)
+        gpointer u_data),
+        gpointer u_data
         ) {
     GstElement *probed_element = element;
     GstPad *pad = gst_element_get_static_pad(element, pad_name);
@@ -18,13 +19,13 @@ void set_probe(GstElement* element,
       return;
     }
 
-    guint probe_id = gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER,
-                                         prober, NULL, NULL);
+    guint probe_id = gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER,
+                                         prober, u_data, NULL);
     if (probe_id == 0) {
       g_printerr ("[PROBE] Error: Failed to add probe on pad '%s'\n", pad_name);
     } else {
       g_print ("[PROBE] Probe installed successfully on %s:%s (probe_id=%u)\n",
-               GST_ELEMENT_NAME (element), pad_name, probe_id);
+               GST_ELEMENT_NAME(element), pad_name, probe_id);
     }
 
     gst_object_unref (pad);

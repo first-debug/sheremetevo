@@ -8,7 +8,8 @@
 
 void set_probe(GstElement* element, gchar *pad_name, GstPadProbeReturn (*prober) (GstPad * pad,
         GstPadProbeInfo * info,
-        gpointer u_data));
+        gpointer u_data),
+        gpointer u_data);
 
 GstPadProbeReturn print_nvmeta_probe(GstPad * pad,
         GstPadProbeInfo * info,
