@@ -1,7 +1,13 @@
+#include "glib.h"
+#include <stddef.h>
+#include <stdlib.h>
+#include <sys/types.h>
+
 #include "gstnvdsmeta.h"
 #include "nvdsmeta.h"
 
 #include "probers.h"
+#include "message.h"
 
 void set_probe(GstElement* element,
         gchar *pad_name,
@@ -101,6 +107,91 @@ GstPadProbeReturn print_nvmeta_probe(GstPad * pad,
     }
 
     g_print ("[PROBE] ========== End of Batch ==========\n\n");
+
+    return GST_PAD_PROBE_OK;
+}
+
+GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
+        GstPadProbeInfo * info,
+        gpointer u_data) {
+    GstBuffer *buf = (GstBuffer *) info->data;
+    NvDsBatchMeta *batch_meta = gst_buffer_get_nvds_batch_meta (buf);
+
+    if (!batch_meta) {
+        return GST_PAD_PROBE_OK;
+    }
+
+    GArray *new_futures_array = g_array_new(FALSE, FALSE, sizeof(future_t));
+
+    NvDsFrameMetaList *frame_meta_list = batch_meta->frame_meta_list;
+
+    for (guint frame_idx = 0; frame_meta_list != NULL; frame_idx++) {
+        NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)frame_meta_list->data;
+
+        guint stream_id = frame_meta->pad_index;
+
+        // получение ограничивающих полигонов
+
+        // получение необходимого объекта для преобразования пиксельных координат в географичесикие
+
+        NvDsObjectMetaList *obj_meta_list = frame_meta->obj_meta_list;
+        guint obj_count = 0;
+
+        for (; obj_meta_list != NULL; obj_count++) {
+            NvDsObjectMeta *obj_meta = (NvDsObjectMeta *) obj_meta_list->data;
+
+            // проверка размера bbox'а
+            if (obj_meta->rect_params.height != 0 &&
+                    obj_meta->rect_params.width / obj_meta->rect_params.height > 1.2) {
+                NvOSD_TextParams text_params = obj_meta->text_params;
+
+                gint x = (gint) (obj_meta->rect_params.left +
+                        obj_meta->rect_params.width / 2);
+                gint y = (gint) (obj_meta->rect_params.top +
+                        obj_meta->rect_params.height);
+
+                // преобразование пиксельных координат в географические
+
+                future_t future = {
+                    .lat = (gdouble)x,
+                    .lng = (gdouble)y,
+                    .object_id = obj_meta->object_id,
+                    .name = "самолёт",
+                    .confidence = obj_meta->confidence,
+                    .bbox = {
+                        .x1 = obj_meta->rect_params.left,
+                        .y1 = obj_meta->rect_params.top,
+                        .x2 = obj_meta->rect_params.left + obj_meta->rect_params.width,
+                        .y2 = obj_meta->rect_params.top + obj_meta->rect_params.height
+                    }
+                };
+                g_array_append_vals(new_futures_array, &future, 1);
+
+                // добавление дополнительных данных на OSD
+
+                // добавление отрисовка точки внизу bbox'а с географическими координатами
+            }
+
+            obj_meta_list = obj_meta_list->next;
+        }
+
+        NvDisplayMetaList *display_meta_list = frame_meta->display_meta_list;
+
+        frame_meta_list = frame_meta_list->next;
+    }
+
+    struct timespec current_time;
+    clock_gettime(CLOCK_REALTIME, &current_time);
+    gdouble time_sec = current_time.tv_sec + current_time.tv_nsec;
+
+    points_message_t msg = {
+        .camera_id = 0,
+        .timestamp = time_sec,
+        .future = (future_t *)new_futures_array->data,
+        .future_size = new_futures_array->len
+    };
+
+    g_array_free(new_futures_array, TRUE);
 
     return GST_PAD_PROBE_OK;
 }
