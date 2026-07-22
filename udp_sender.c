@@ -45,7 +45,7 @@ int udp_connection_init(udp_connection_t *conn, const char *server_ip, uint16_t 
     return 0;
 }
 
-ssize_t udp_send(udp_connection_t *conn, const uint8_t *data, size_t len) {
+ssize_t udp_connection_send(udp_connection_t *conn, const uint8_t *data, size_t len) {
     assert(conn != NULL);
 
     if (conn->sockfd < 0) {
