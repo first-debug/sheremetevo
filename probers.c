@@ -1,4 +1,5 @@
 #include "glib.h"
+#include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -8,6 +9,8 @@
 
 #include "probers.h"
 #include "message.h"
+#include "serializer.h"
+#include "udp_sender.h"
 
 void set_probe(GstElement* element,
         gchar *pad_name,
@@ -121,6 +124,10 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
         return GST_PAD_PROBE_OK;
     }
 
+    assert(u_data != NULL);
+
+    udp_connection_t *udp_conn = (udp_connection_t *)u_data;
+
     GArray *new_futures_array = g_array_new(FALSE, FALSE, sizeof(future_t));
 
     NvDsFrameMetaList *frame_meta_list = batch_meta->frame_meta_list;
@@ -190,6 +197,30 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
         .future = (future_t *)new_futures_array->data,
         .future_size = new_futures_array->len
     };
+
+    uint8_t *data = NULL;
+    size_t len_data;
+
+    if (serialize_message(&msg, &data, &len_data) != 0) {
+        g_print("Cannot serialize message.\n");
+    } else {
+        ssize_t sent = udp_connection_send(udp_conn, data, len_data);
+
+        if (sent < 0) {
+            g_print("Failed to send message with length = %ld to server = %s:%d\n",
+                    len_data,
+                    udp_conn->server_ip,
+                    udp_conn->server_port
+                    );
+        } else
+            g_print("Sent %zd bytes to %s:%u: %.*s\n",
+                   sent,
+                   udp_conn->server_ip,
+                   udp_conn->server_port,
+                   (int)len_data,
+                   (const char *)data
+                   );
+    }
 
     g_array_free(new_futures_array, TRUE);
 

@@ -5,6 +5,8 @@
 
 #include "bus_call.h"
 #include "custom_bins.h"
+#include "probers.h"
+#include "udp_sender.h"
 
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
@@ -140,6 +142,13 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    udp_connection_t udp_conn;
+    memset(&udp_conn, -1, sizeof(udp_connection_t));
+
+    udp_connection_init(&udp_conn, "192.168.10.185", 6767);
+
+    set_probe(nvosd, "src", pgie_src_pad_buffer_probe, &udp_conn);
+
 #ifdef SAVE_TO_FILE
     if (!gst_element_link_many(nvosd, encoder, sink_parser, NULL)) {
         g_printerr("Cannot link elements.\n");
@@ -167,6 +176,8 @@ int main(int argc, char *argv[]) {
     g_main_loop_run(loop);
 
     gst_element_set_state(pipeline, GST_STATE_NULL);
+
+    udp_connection_close(&udp_conn);
     gst_object_unref(GST_OBJECT(pipeline));
     g_source_remove(bus_watch_id);
     g_main_loop_unref(loop);
