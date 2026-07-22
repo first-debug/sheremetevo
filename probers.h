@@ -6,9 +6,11 @@
 #include "gstnvdsmeta.h"
 #include "nvdsmeta.h"
 
-void set_prober(GstElement* element, gchar *pad_name);
+void set_probe(GstElement* element, gchar *pad_name, GstPadProbeReturn (*prober) (GstPad * pad,
+        GstPadProbeInfo * info,
+        gpointer u_data));
 
-GstPadProbeReturn meta_prober(GstPad * pad,
+GstPadProbeReturn print_nvmeta_probe(GstPad * pad,
         GstPadProbeInfo * info,
         gpointer u_data);
 
