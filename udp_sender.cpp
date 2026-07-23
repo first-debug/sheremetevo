@@ -4,26 +4,26 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <iostream>
 
 #include "udp_sender.hpp"
 
-int udp_connection_init(udp_connection_t *conn, const char *server_ip, uint16_t server_port) {
-    assert(conn != NULL);
-    assert(server_ip != NULL);
+UdpConnection::UdpConnection(std::string server_ip, uint16_t server_port)
+    : server_ip(server_ip), server_port(server_port) {
+    assert(!server_ip.empty());
+    assert(server_port < 1024);
 
-    if (conn->sockfd >= 0) {
-        fprintf(stderr, "udp_connection_init: socket connection already init\n");
-        return -1;
+    if (this->sockfd >= 0) {
+        std::cerr << "udp_connection_init: socket connection already init" << std::endl;
+        return;
     }
 
-    // очищаем структуру
-    memset(conn, 0, sizeof(*conn));
-    conn->sockfd = -1;
+    this->sockfd = -1;
 
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
-        perror("udp_connection_init: socket");
-        return -1;
+        std::cerr << "udp_connection_init: socket" << std::endl;
+        return;
     }
 
     struct sockaddr_in addr;
@@ -31,53 +31,54 @@ int udp_connection_init(udp_connection_t *conn, const char *server_ip, uint16_t 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(server_port);
 
-    if (inet_pton(AF_INET, server_ip, &addr.sin_addr) < 1) {
-        fprintf(stderr, "udp_connection_init: cannot convert '%s' to IPv4 byte format\n", server_ip);
-        close(fd);
-        return -1;
+    if (inet_pton(AF_INET, server_ip.data(), &addr.sin_addr) < 1) {
+        std::cerr << "udp_connection_init: cannot convert '" << server_ip << "' to IPv4 byte format" << std::endl;;
+        ::close(fd);
+        return;
     }
 
-    conn->sockfd = fd;
-    conn->server_addr = addr;
-    conn->server_port = server_port;
-    strncpy(conn->server_ip, server_ip, sizeof(conn->server_ip) - 1);
-
-    return 0;
+    this->sockfd = fd;
+    this->server_addr = addr;
+    this->server_ip = server_ip;
 }
 
-ssize_t udp_connection_send(udp_connection_t *conn, const uint8_t *data, size_t len) {
-    assert(conn != NULL);
-
-    if (conn->sockfd < 0) {
-        fprintf(stderr, "udp_send: socket not initialized\n");
+ssize_t UdpConnection::send(const uint8_t *data, size_t len) {
+    if (this->sockfd < 0) {
+        std::cerr << "udp_send: socket not initialized" << std::endl;
         return -1;
     }
 
     if (data == NULL) {
-        fprintf(stderr, "udp_send: invalid data argument\n");
+        std::cerr << "udp_send: invalid data argument" << std::endl;
         return 0;
     }
 
-    ssize_t sent_size = sendto(conn->sockfd, data, len, 0, (const struct sockaddr *)&conn->server_addr, sizeof(conn->server_addr));
+    ssize_t sent_size = sendto(this->sockfd,
+            data,
+            len,
+            0,
+            (const struct sockaddr *)&this->server_addr, sizeof(this->server_addr));
 
     if (sent_size < 0) {
-        perror("udp_send: sendto");
+        std::cerr << "udp_send: sendto: "
+              << std::error_code(errno, std::generic_category()).message()
+              << std::endl;
         return -1;
     }
 
     if (sent_size != len) {
-        fprintf(stderr, "udp_send: partial send (%zd of %zu bytes)\n", sent_size, len);
+        std::cerr
+            << "udp_send: partial send (" << sent_size << " of " << len << "bytes)"
+            << std::endl;
     }
 
     return sent_size;
 }
 
-void udp_connection_close(udp_connection_t *conn) {
-    if (conn == NULL)
-        return;
-    if (conn->sockfd >= 0) {
-        close(conn->sockfd);
-        conn->sockfd = -1;
+UdpConnection::~UdpConnection() {
+    if (this->sockfd >= 0) {
+        ::close(this->sockfd);
+        this->sockfd = -1;
     }
 }
 

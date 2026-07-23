@@ -5,16 +5,21 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <netinet/in.h>
+#include <string>
 
-typedef struct {
+class UdpConnection {
+private:
     int                sockfd;
     struct sockaddr_in server_addr;
-    char               server_ip[INET_ADDRSTRLEN];
-    uint16_t           server_port;
-} udp_connection_t;
 
-int udp_connection_init(udp_connection_t *conn, const char *server_ip, uint16_t server_port);
-ssize_t udp_connection_send(udp_connection_t *conn, const uint8_t *data, size_t len);
-void udp_connection_close(udp_connection_t *conn);
+public:
+    std::string              server_ip;
+    const uint16_t           server_port;
+
+    UdpConnection(std::string server_ip, uint16_t server_port);
+    ssize_t send(const uint8_t *data, size_t len);
+
+    ~UdpConnection();
+};
 
 #endif /* UDP_CLIENT_H */
