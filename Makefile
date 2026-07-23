@@ -1,35 +1,37 @@
-APP:= sheremetevo-app
+CXX:= g++
 
+NVDS_VERSION:=9.0
+LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
+
+APP:= sheremetevo-app
 BUILD_DIR:= build
 CONFIGS_DIR:= configs
 GRAPHS_DIR:= graphs
 
 TARGET:= $(BUILD_DIR)/$(APP)
 
-TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
-
-NVDS_VERSION:=9.0
-
-LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
-
-SRCS:= $(wildcard *.c)
-
-INCS:= $(wildcard *.h)
-
-PKGS:= gstreamer-1.0
-
-OBJS:= $(SRCS:.c=.o)
+SRCS+= $(wildcard *.cpp)
+INCS+= $(wildcard *.hpp)
+OBJS+= $(SRCS:.cpp=.o)
+PKGS:= gstreamer-1.0 opencv4
 
 BUILD_OBJS:= $(addprefix $(BUILD_DIR)/, $(OBJS))
 
 CFLAGS+= $(shell pkg-config --cflags $(PKGS)) \
 		 -I/opt/nvidia/deepstream/deepstream/sources/includes \
 		 -L/opt/nvidia/deepstream/deepstream/lib -lnvdsgst_meta -lnvds_meta \
-		 -L$(BUILD_DIR)
+		 -L$(BUILD_DIR) \
+		 -I/usr/include/opencv4
 
 LIBS:= $(shell pkg-config --libs $(PKGS)) \
-		-L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta -lnvds_yml_parser \
-		-lcuda -lnvbufsurface -Wl,-rpath,$(LIB_INSTALL_DIR)
+		-L$(LIB_INSTALL_DIR) \
+		-lnvdsgst_meta \
+		-lnvds_meta \
+		-lnvds_yml_parser \
+		-lcuda \
+		-lnvbufsurface \
+		-Wl,-rpath,$(LIB_INSTALL_DIR) \
+		-ljson-c
 
 .PHONY: all run install clean
 
@@ -40,16 +42,16 @@ run: all
 
 run-single-src: $(TARGET)
 	$(TARGET) $(CONFIGS_DIR)/config_infer_primary_yolo.txt \
-		rtspt://192.168.10.183:8554/output \
-		rtspt://192.168.10.183:8554/svo1
+		rtspt://192.168.10.185:8554/output \
+		rtspt://192.168.10.185:8554/svo1
 
 run-multi-src: $(TARGET)
 	$(TARGET) $(CONFIGS_DIR)/config_infer_primary_yolo.txt \
-		rtspt://192.168.10.183:8554/output \
-		rtspt://192.168.10.183:8554/svo1 \
-		rtspt://192.168.10.183:8554/svo2 \
-		rtspt://192.168.10.183:8554/svo3 \
-		rtspt://192.168.10.183:8554/svo4
+		rtspt://192.168.10.185:8554/output \
+		rtspt://192.168.10.185:8554/svo1 \
+		rtspt://192.168.10.185:8554/svo2 \
+		rtspt://192.168.10.185:8554/svo3 \
+		rtspt://192.168.10.185:8554/svo4
 
 $(BUILD_DIR):
 	mkdir -p $@
@@ -57,11 +59,14 @@ $(BUILD_DIR):
 $(GRAPHS_DIR):
 	mkdir -p $@
 
-$(BUILD_DIR)/%.o: %.c $(INCS) Makefile | $(BUILD_DIR)
-	$(CC) -c -o $@ $(CFLAGS) $<
+$(MEDIA_DIR):
+	mkdir -p $@
+
+$(BUILD_DIR)/%.o: %.cpp $(INCS) Makefile | $(BUILD_DIR)
+	$(CXX) -c -o $@ $(CFLAGS) $<
 
 $(TARGET): $(BUILD_OBJS) Makefile | $(BUILD_DIR)
-	$(CC) -o $@ $(BUILD_OBJS) $(LIBS)
+	$(CXX) -o $@ $(BUILD_OBJS) $(LIBS)
 
 gen-graph: $(TARGET) | $(GRAPHS_DIR)
 	GST_DEBUG_DUMP_DOT_DIR=graphs $(MAKE) run-multi-src

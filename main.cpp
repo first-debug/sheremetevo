@@ -1,26 +1,22 @@
+#include "glib.h"
+#include "gst/gst.h"
 #include "gst/gstelement.h"
-#include "gst/gstelementfactory.h"
-#include "gst/gstobject.h"
-#include "gst/gstpad.h"
-#include "gst/gstpipeline.h"
-#include <gst/gst.h>
-#include <glib.h>
 #include <stdio.h>
 
-#include "gst/gstutils.h"
-
-#include "structs.h"
-
-gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data);
-void cb_newpad(GstElement *bin, GstPad *pad, gpointer data);
-gboolean cb_removepad(GstElement *bin, GstPad *pad, gpointer data);
-GstElement *create_source_bin(gchar *uri, gint index);
-GstElement *create_sink_bin(gchar *uri, gint index);
+#include "bus_call.hpp"
+#include "custom_bins.hpp"
+#include "probers.hpp"
+#include "splited_points.hpp"
+#include "udp_connection.hpp"
 
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
-    GstElement *pipeline = NULL, *streammux = NULL, *pgie = NULL,
-               *nvosd = NULL, *tiler = NULL, *sink = NULL;
+    GstElement *pipeline = NULL,
+               *streammux = NULL,
+               *pgie = NULL,
+               *nvosd = NULL,
+               *tiler = NULL,
+               *sink = NULL;
     GstPad *src_pad = NULL, *sink_pad = NULL;
     GstBus *bus = NULL;
     guint bus_watch_id;
@@ -64,7 +60,8 @@ int main(int argc, char *argv[]) {
     // 3656 5504
     g_object_set(G_OBJECT(tiler),
             "width", 2720,
-            "height", 4096, NULL);
+            "height", 4096,
+            NULL);
 
     // Dynamic linking
     gchar buffer[20];
@@ -105,6 +102,23 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    UdpConnection udp_conn("192.168.10.185", 6767);
+
+    points_struct points;
+    init_points(points);
+
+    pgie_probe_data probe_data = {
+        &udp_conn,
+        {
+            PixelGeoTransformer(points.pixels_cam1, points.geo_cam1),
+            PixelGeoTransformer(points.pixels_cam2, points.geo_cam2),
+            PixelGeoTransformer(points.pixels_cam3, points.geo_cam3),
+            PixelGeoTransformer(points.pixels_cam4, points.geo_cam4),
+        }
+    };
+
+    set_probe(pgie, "src", pgie_src_pad_buffer_probe, &probe_data);
+
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "sheremetevo");
     bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
     BusCallData data = { loop, pipeline };
@@ -116,6 +130,7 @@ int main(int argc, char *argv[]) {
     g_main_loop_run(loop);
 
     gst_element_set_state(pipeline, GST_STATE_NULL);
+
     gst_object_unref(GST_OBJECT(pipeline));
     g_source_remove(bus_watch_id);
     g_main_loop_unref(loop);
