@@ -1,7 +1,7 @@
 #include "glib.h"
 #include "gst/gst.h"
 #include "gst/gstelement.h"
-#include <stdio.h>
+#include <cstdio>
 
 #include "bus_call.hpp"
 #include "custom_bins.hpp"
@@ -15,8 +15,7 @@ int main(int argc, char *argv[]) {
                *streammux = NULL,
                *pgie = NULL,
                *nvosd = NULL,
-               *tiler = NULL,
-               *sink = NULL;
+               *demux = NULL;
     GstPad *src_pad = NULL, *sink_pad = NULL;
     GstBus *bus = NULL;
     guint bus_watch_id;
@@ -34,18 +33,15 @@ int main(int argc, char *argv[]) {
 
     streammux = gst_element_factory_make("nvstreammux", "stream-muxer");
     pgie = gst_element_factory_make("nvinfer", "primary-infer");
-    tiler = gst_element_factory_make("nvmultistreamtiler", "tiler");
 
-    nvosd = gst_element_factory_make("nvdsosd", "nvosd");
-    sink = create_sink_bin(argv[2], 0);
+    demux = gst_element_factory_make("nvstreamdemux", "demux");
 
-    if (!pipeline || !streammux || !pgie || !tiler || !nvosd || !sink) {
+    if (!pipeline || !streammux || !pgie || !demux) {
         g_printerr("Cannot create some modules.\n");
         return -1;
     }
 
-    gst_bin_add_many(GST_BIN(pipeline), streammux, pgie,
-            tiler, nvosd, sink, NULL);
+    gst_bin_add_many(GST_BIN(pipeline), streammux, pgie, demux, NULL);
 
     g_object_set(G_OBJECT(streammux),
             "batch-size", argc - 3,
@@ -56,15 +52,8 @@ int main(int argc, char *argv[]) {
             // "height", 480, NULL);
 
     g_object_set(G_OBJECT(pgie), "config-file-path", argv[1], NULL);
-    // 1728 2752
-    // 3656 5504
-    g_object_set(G_OBJECT(tiler),
-            "width", 2720,
-            "height", 4096,
-            NULL);
 
-    // Dynamic linking
-    gchar buffer[20];
+    gchar buffer[40];
     GstElement *new_bin = NULL;
     for (int i = 3, index; i < argc; i++) {
         index = i - 3;
@@ -97,8 +86,51 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    if (!gst_element_link_many(streammux, pgie, tiler, nvosd, sink, NULL)) {
+    if (!gst_element_link_many(streammux, pgie, demux, NULL)) {
         g_printerr("Cannot link elements.\n");
+        return -1;
+    }
+
+    for (int i = 3, index; i < argc; i++) {
+        index = i - 3;
+        snprintf(buffer, 39, "%s_%1d", argv[2], index);
+        new_bin = create_sink_bin(buffer, index);
+        snprintf(buffer, 39, "nvosd_%1d", index);
+        nvosd = gst_element_factory_make("nvdsosd", buffer);
+
+        if (new_bin == NULL || nvosd == NULL) {
+            g_printerr("Cannot create rtsp sink bin for uri = %s\n", argv[i]);
+            continue;
+        }
+
+        gst_bin_add_many(GST_BIN(pipeline), nvosd, new_bin, NULL);
+
+        snprintf(buffer, 17, "src_%1d", index);
+        src_pad = gst_element_request_pad_simple(demux, buffer);
+        sink_pad = gst_element_get_static_pad(nvosd, "sink");
+
+        if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
+            g_printerr("Cannot link demux and nvosd.\n");
+            gst_object_unref(src_pad);
+            gst_object_unref(sink_pad);
+            gst_bin_remove_many(GST_BIN(pipeline), nvosd, new_bin, NULL);
+            return -1;
+        }
+
+        if (!gst_element_link(nvosd, new_bin)) {
+            g_printerr("Cannot link nvosd and new sink bin.\n");
+            gst_object_unref(src_pad);
+            gst_object_unref(sink_pad);
+            gst_bin_remove_many(GST_BIN(pipeline), nvosd, new_bin, NULL);
+            return -1;
+        }
+
+        gst_object_unref(src_pad);
+        gst_object_unref(sink_pad);
+    }
+
+    if (demux->numsrcpads == 0) {
+        g_printerr("Couldn't create at least one sink.\n");
         return -1;
     }
 
