@@ -13,13 +13,6 @@ UdpConnection::UdpConnection(std::string server_ip, uint16_t server_port)
     assert(!server_ip.empty());
     assert(server_port >= 1024);
 
-    if (this->sockfd >= 0) {
-        std::cerr << "udp_connection_init: socket connection already init" << std::endl;
-        return;
-    }
-
-    this->sockfd = -1;
-
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
         std::cerr << "udp_connection_init: socket" << std::endl;
