@@ -10,7 +10,7 @@
 #include "probers.hpp"
 #include "message.hpp"
 #include "serializer.hpp"
-#include "udp_sender.hpp"
+#include "udp_connection.hpp"
 
 void set_probe(GstElement* element,
         const gchar *pad_name,
@@ -126,7 +126,7 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
 
     assert(u_data != NULL);
 
-    udp_connection_t *udp_conn = (udp_connection_t *)u_data;
+    UdpConnection *udp_conn = static_cast<UdpConnection *>(u_data);
 
     GArray *new_futures_array = g_array_new(FALSE, FALSE, sizeof(future_t));
 
@@ -204,18 +204,18 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
     if (serialize_message(&msg, &data, &len_data) != 0) {
         g_print("Cannot serialize message.\n");
     } else {
-        ssize_t sent = udp_connection_send(udp_conn, data, len_data);
+        ssize_t sent = udp_conn->send(data, len_data);
 
         if (sent < 0) {
             g_print("Failed to send message with length = %ld to server = %s:%d\n",
                     len_data,
-                    udp_conn->server_ip,
+                    udp_conn->server_ip.data(),
                     udp_conn->server_port
                     );
         } else
             g_print("Sent %zd bytes to %s:%u: %.*s\n",
                    sent,
-                   udp_conn->server_ip,
+                   udp_conn->server_ip.data(),
                    udp_conn->server_port,
                    (int)len_data,
                    (const char *)data

@@ -6,7 +6,7 @@
 #include "bus_call.hpp"
 #include "custom_bins.hpp"
 #include "probers.hpp"
-#include "udp_sender.hpp"
+#include "udp_connection.hpp"
 
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
@@ -142,10 +142,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    udp_connection_t udp_conn;
-    memset(&udp_conn, -1, sizeof(udp_connection_t));
-
-    udp_connection_init(&udp_conn, "192.168.10.185", 6767);
+    UdpConnection udp_conn("192.168.10.185", 6767);
 
     set_probe(nvosd, "src", pgie_src_pad_buffer_probe, &udp_conn);
 
@@ -177,7 +174,6 @@ int main(int argc, char *argv[]) {
 
     gst_element_set_state(pipeline, GST_STATE_NULL);
 
-    udp_connection_close(&udp_conn);
     gst_object_unref(GST_OBJECT(pipeline));
     g_source_remove(bus_watch_id);
     g_main_loop_unref(loop);
