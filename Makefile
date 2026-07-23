@@ -14,7 +14,7 @@ TARGET:= $(BUILD_DIR)/$(APP)
 SRCS+= $(wildcard *.cpp)
 INCS+= $(wildcard *.hpp)
 OBJS+= $(SRCS:.cpp=.o)
-PKGS:= gstreamer-1.0
+PKGS:= gstreamer-1.0 opencv4
 
 BUILD_OBJS:= $(addprefix $(BUILD_DIR)/, $(OBJS))
 
