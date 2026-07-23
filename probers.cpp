@@ -126,7 +126,7 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
 
     assert(u_data != NULL);
 
-    UdpConnection *udp_conn = static_cast<UdpConnection *>(u_data);
+    pgie_probe_data *prob_data = static_cast<pgie_probe_data *>(u_data);
 
     GArray *new_futures_array = g_array_new(FALSE, FALSE, sizeof(future_t));
 
@@ -157,11 +157,11 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
                 gint y = (gint) (obj_meta->rect_params.top +
                         obj_meta->rect_params.height);
 
-                // преобразование пиксельных координат в географические
+                std::pair geo_coords = prob_data->transformers[frame_meta->pad_index].pixel_to_geo(x, y);
 
                 future_t future = {
-                    .lat = (gdouble)x,
-                    .lng = (gdouble)y,
+                    .lat = geo_coords.first,
+                    .lng = geo_coords.second,
                     .object_id = static_cast<int>(obj_meta->object_id),
                     .name = "самолёт",
                     .confidence = obj_meta->confidence,
@@ -204,19 +204,19 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
     if (serialize_message(&msg, &data, &len_data) != 0) {
         g_print("Cannot serialize message.\n");
     } else {
-        ssize_t sent = udp_conn->send(data, len_data);
+        ssize_t sent = prob_data->udp_conn.send(data, len_data);
 
         if (sent < 0) {
             g_print("Failed to send message with length = %ld to server = %s:%d\n",
                     len_data,
-                    udp_conn->server_ip.data(),
-                    udp_conn->server_port
+                    prob_data->udp_conn.server_ip.data(),
+                    prob_data->udp_conn.server_port
                     );
         } else
             g_print("Sent %zd bytes to %s:%u: %.*s\n",
                    sent,
-                   udp_conn->server_ip.data(),
-                   udp_conn->server_port,
+                   prob_data->udp_conn.server_ip.data(),
+                   prob_data->udp_conn.server_port,
                    (int)len_data,
                    (const char *)data
                    );

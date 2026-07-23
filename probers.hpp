@@ -2,6 +2,13 @@
 #define PROBERS_H
 
 #include "gst/gstpad.h"
+#include "pixel_transformer.hpp"
+#include "udp_connection.hpp"
+
+typedef struct {
+    UdpConnection udp_conn;
+    PixelGeoTransformer transformers[4];
+} pgie_probe_data;
 
 void set_probe(GstElement* element, const gchar *pad_name, GstPadProbeReturn (*prober) (GstPad * pad,
         GstPadProbeInfo * info,

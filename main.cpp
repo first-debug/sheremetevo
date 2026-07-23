@@ -6,6 +6,7 @@
 #include "bus_call.hpp"
 #include "custom_bins.hpp"
 #include "probers.hpp"
+#include "splited_points.hpp"
 #include "udp_connection.hpp"
 
 int main(int argc, char *argv[]) {
@@ -144,7 +145,20 @@ int main(int argc, char *argv[]) {
 
     UdpConnection udp_conn("192.168.10.185", 6767);
 
-    set_probe(nvosd, "src", pgie_src_pad_buffer_probe, &udp_conn);
+    points_struct points;
+    init_points(points);
+
+    pgie_probe_data probe_data = {
+        udp_conn,
+        {
+            PixelGeoTransformer(points.pixels_cam1, points.geo_cam1),
+            PixelGeoTransformer(points.pixels_cam2, points.geo_cam2),
+            PixelGeoTransformer(points.pixels_cam3, points.geo_cam3),
+            PixelGeoTransformer(points.pixels_cam4, points.geo_cam4),
+        }
+    };
+
+    set_probe(nvosd, "src", pgie_src_pad_buffer_probe, &probe_data);
 
 #ifdef SAVE_TO_FILE
     if (!gst_element_link_many(nvosd, encoder, sink_parser, NULL)) {
