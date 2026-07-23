@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
         }
     };
 
-    set_probe(nvosd, "src", pgie_src_pad_buffer_probe, &probe_data);
+    set_probe(pgie, "src", pgie_src_pad_buffer_probe, &probe_data);
 
 #ifdef SAVE_TO_FILE
     if (!gst_element_link_many(nvosd, encoder, sink_parser, NULL)) {

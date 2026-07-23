@@ -12,6 +12,12 @@
 #include "serializer.hpp"
 #include "udp_connection.hpp"
 
+void draw_object_meta(NvOSD_RectParams* bounding_box, NvOSD_TextParams* text_params,
+                      const std::string& class_name, int track_id, float confidence);
+void draw_point_with_latlng(NvDsBatchMeta* batch_meta, NvDsFrameMeta* frame_meta,
+                             NvDsDisplayMeta*& display_meta,
+                             const NvOSD_RectParams& bbox, double lat, double lng);
+
 void set_probe(GstElement* element,
         const gchar *pad_name,
         GstPadProbeReturn (*prober)
@@ -136,12 +142,9 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
 
     for (guint frame_idx = 0; frame_meta_list != NULL; frame_idx++) {
         NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)frame_meta_list->data;
-
         guint stream_id = frame_meta->pad_index;
 
-        // получение ограничивающих полигонов
-
-        // получение необходимого объекта для преобразования пиксельных координат в географичесикие
+        NvDsDisplayMeta* current_display_meta = nullptr;
 
         NvDsObjectMetaList *obj_meta_list = frame_meta->obj_meta_list;
         guint obj_count = 0;
@@ -152,7 +155,6 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
             // проверка размера bbox'а
             if (obj_meta->rect_params.height != 0 &&
                     obj_meta->rect_params.width / obj_meta->rect_params.height > 1.2) {
-                NvOSD_TextParams text_params = obj_meta->text_params;
 
                 gint x = (gint) (obj_meta->rect_params.left +
                         obj_meta->rect_params.width / 2);
@@ -176,9 +178,11 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
                 };
                 g_array_append_vals(new_futures_array, &future, 1);
 
-                // добавление дополнительных данных на OSD
+                draw_object_meta(&obj_meta->rect_params, &obj_meta->text_params,
+                        future.name, future.object_id, future.confidence);
 
-                // добавление отрисовка точки внизу bbox'а с географическими координатами
+                draw_point_with_latlng(batch_meta, frame_meta, current_display_meta,
+                        obj_meta->rect_params, future.lat, future.lng);
             }
 
             obj_meta_list = obj_meta_list->next;
@@ -219,5 +223,83 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
     g_array_free(new_futures_array, TRUE);
 
     return GST_PAD_PROBE_OK;
+}
+
+void draw_object_meta(NvOSD_RectParams* bounding_box, NvOSD_TextParams* text_params,
+                      const std::string& class_name, int track_id, float confidence) {
+
+    // Настройка рамки
+    bounding_box->border_width = 2;
+    bounding_box->has_bg_color = 0;
+
+    bounding_box->border_color.red   = 0.0;
+    bounding_box->border_color.green = 1.0;
+    bounding_box->border_color.blue  = 0.0;
+    bounding_box->border_color.alpha = 1.0;
+
+    // Форматирование текста
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "%d %s %.2f", track_id, class_name.c_str(), confidence);
+
+    // Выделение памяти под строку (в DeepStream ожидается char*)
+    text_params->display_text = strdup(buffer);
+
+    // Позиционирование текста
+    text_params->x_offset = std::max(0, static_cast<int>(bounding_box->left));
+    text_params->y_offset = std::max(0, static_cast<int>(bounding_box->top) - 30);
+
+    // Настройка шрифта
+    text_params->font_params.font_name = strdup("Serif");
+    text_params->font_params.font_size = 16;
+
+    text_params->font_params.font_color.red   = 1.0;
+    text_params->font_params.font_color.green = 1.0;
+    text_params->font_params.font_color.blue  = 1.0;
+    text_params->font_params.font_color.alpha = 1.0;
+}
+
+void draw_point_with_latlng(NvDsBatchMeta* batch_meta, NvDsFrameMeta* frame_meta,
+                             NvDsDisplayMeta*& display_meta,
+                             const NvOSD_RectParams& bbox, double lat, double lng) {
+    if (!display_meta ||
+        display_meta->num_circles >= MAX_ELEMENTS_IN_DISPLAY_META ||
+        display_meta->num_labels  >= MAX_ELEMENTS_IN_DISPLAY_META) {
+
+        display_meta = nvds_acquire_display_meta_from_pool(batch_meta);
+        if (!display_meta) {
+            return;
+        }
+        nvds_add_display_meta_to_frame(frame_meta, display_meta);
+    }
+
+    int x = static_cast<int>(bbox.left + bbox.width / 2.0);
+    int y = static_cast<int>(bbox.top + bbox.height);
+
+    NvOSD_CircleParams* circle = &display_meta->circle_params[display_meta->num_circles];
+    circle->xc = x;
+    circle->yc = y;
+    circle->radius = 5;
+    circle->circle_color = {1.0, 0.0, 0.0, 1.0};
+    circle->has_bg_color = 1;
+    circle->bg_color = {1.0, 0.0, 0.0, 0.5};
+    display_meta->num_circles++;
+
+    NvOSD_TextParams* label = &display_meta->text_params[display_meta->num_labels];
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "lat: %.6f lng: %.6f", lat, lng);
+
+    label->display_text = strdup(buffer);
+
+    label->x_offset = std::max(0, x);
+    label->y_offset = std::max(0, y - 15);
+
+    label->font_params.font_name = strdup("Arial");
+    label->font_params.font_size = 12;
+    label->font_params.font_color = {1.0, 1.0, 0.0, 1.0};
+
+    label->set_bg_clr = 1;
+    label->text_bg_clr = {0.0, 0.0, 0.0, 0.6};
+
+    display_meta->num_labels++;
 }
 
