@@ -5,8 +5,12 @@
 #include <vector>
 #include <array>
 #include <utility>
-#include <cmath>
 
+/*
+* PixelGeoTransformer преобразует пиксельные координаты в географические.
+*
+* Географические координты должны быть в формате (lng, lat).
+*/
 class PixelGeoTransformer {
 private:
     std::array<double, 9> H_flat;
