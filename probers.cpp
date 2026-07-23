@@ -128,6 +128,8 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
 
     pgie_probe_data *prob_data = static_cast<pgie_probe_data *>(u_data);
 
+    assert(prob_data->udp_conn != NULL);
+
     GArray *new_futures_array = g_array_new(FALSE, FALSE, sizeof(future_t));
 
     NvDsFrameMetaList *frame_meta_list = batch_meta->frame_meta_list;
@@ -204,22 +206,14 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
     if (serialize_message(&msg, &data, &len_data) != 0) {
         g_print("Cannot serialize message.\n");
     } else {
-        ssize_t sent = prob_data->udp_conn.send(data, len_data);
+        ssize_t sent = prob_data->udp_conn->send(data, len_data);
 
-        if (sent < 0) {
+        if (sent < 0)
             g_print("Failed to send message with length = %ld to server = %s:%d\n",
                     len_data,
-                    prob_data->udp_conn.server_ip.data(),
-                    prob_data->udp_conn.server_port
+                    prob_data->udp_conn->server_ip.data(),
+                    prob_data->udp_conn->server_port
                     );
-        } else
-            g_print("Sent %zd bytes to %s:%u: %.*s\n",
-                   sent,
-                   prob_data->udp_conn.server_ip.data(),
-                   prob_data->udp_conn.server_port,
-                   (int)len_data,
-                   (const char *)data
-                   );
     }
 
     g_array_free(new_futures_array, TRUE);

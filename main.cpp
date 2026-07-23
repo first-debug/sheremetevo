@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
     init_points(points);
 
     pgie_probe_data probe_data = {
-        udp_conn,
+        &udp_conn,
         {
             PixelGeoTransformer(points.pixels_cam1, points.geo_cam1),
             PixelGeoTransformer(points.pixels_cam2, points.geo_cam2),
