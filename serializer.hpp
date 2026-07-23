@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "message.h"
+#include "message.hpp"
 
 int serialize_message(const points_message_t *msg,
         uint8_t **out_data,

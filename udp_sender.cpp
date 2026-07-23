@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
-#include "udp_sender.h"
+#include "udp_sender.hpp"
 
 int udp_connection_init(udp_connection_t *conn, const char *server_ip, uint16_t server_port) {
     assert(conn != NULL);

@@ -1,8 +1,9 @@
-#include "callbacks.h"
 #include "gst/gstbin.h"
 #include "gst/gstghostpad.h"
 #include "gst/gstutils.h"
 #include <stdio.h>
+
+#include "callbacks.hpp"
 
 GstElement *create_source_bin(gchar *uri, gint index) {
     GstElement *bin = NULL,

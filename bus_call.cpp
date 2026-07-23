@@ -2,7 +2,7 @@
 #include "gst/gstbus.h"
 #include "gst/gstutils.h"
 
-#include "bus_call.h"
+#include "bus_call.hpp"
 
 gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data) {
     BusCallData *data_struct = (BusCallData *)data;

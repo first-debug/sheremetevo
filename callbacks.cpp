@@ -1,4 +1,4 @@
-#include "callbacks.h"
+#include "callbacks.hpp"
 
 void cb_newpad(GstElement *bin, GstPad *pad, gpointer data) {
     GstElement *depay = (GstElement *)data;

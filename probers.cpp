@@ -7,13 +7,13 @@
 #include "gstnvdsmeta.h"
 #include "nvdsmeta.h"
 
-#include "probers.h"
-#include "message.h"
-#include "serializer.h"
-#include "udp_sender.h"
+#include "probers.hpp"
+#include "message.hpp"
+#include "serializer.hpp"
+#include "udp_sender.hpp"
 
 void set_probe(GstElement* element,
-        gchar *pad_name,
+        const gchar *pad_name,
         GstPadProbeReturn (*prober)
         (GstPad * pad,
         GstPadProbeInfo * info,
@@ -162,14 +162,14 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
                 future_t future = {
                     .lat = (gdouble)x,
                     .lng = (gdouble)y,
-                    .object_id = obj_meta->object_id,
+                    .object_id = static_cast<int>(obj_meta->object_id),
                     .name = "самолёт",
                     .confidence = obj_meta->confidence,
                     .bbox = {
-                        .x1 = obj_meta->rect_params.left,
-                        .y1 = obj_meta->rect_params.top,
-                        .x2 = obj_meta->rect_params.left + obj_meta->rect_params.width,
-                        .y2 = obj_meta->rect_params.top + obj_meta->rect_params.height
+                        .x1 = static_cast<int>(obj_meta->rect_params.left),
+                        .y1 = static_cast<int>(obj_meta->rect_params.top),
+                        .x2 = static_cast<int>(obj_meta->rect_params.left + obj_meta->rect_params.width),
+                        .y2 = static_cast<int>(obj_meta->rect_params.top + obj_meta->rect_params.height)
                     }
                 };
                 g_array_append_vals(new_futures_array, &future, 1);

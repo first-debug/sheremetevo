@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "serializer.h"
+#include "serializer.hpp"
 
 static struct json_object *bbox_to_json(const bbox_t *b)
 {

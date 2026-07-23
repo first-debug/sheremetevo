@@ -1,3 +1,5 @@
+CXX:= g++
+
 NVDS_VERSION:=9.0
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
@@ -9,10 +11,10 @@ MEDIA_DIR:= media
 
 TARGET:= $(BUILD_DIR)/$(APP)
 
-SRCS:= $(wildcard *.c)
-INCS:= $(wildcard *.h)
+SRCS+= $(wildcard *.cpp)
+INCS+= $(wildcard *.hpp)
+OBJS+= $(SRCS:.cpp=.o)
 PKGS:= gstreamer-1.0
-OBJS:= $(SRCS:.c=.o)
 
 BUILD_OBJS:= $(addprefix $(BUILD_DIR)/, $(OBJS))
 
@@ -64,15 +66,15 @@ $(GRAPHS_DIR):
 $(MEDIA_DIR):
 	mkdir -p $@
 
-$(BUILD_DIR)/%.o: %.c $(INCS) Makefile | $(BUILD_DIR)
-	$(CC) -c -o $@ $(CFLAGS) $<
+$(BUILD_DIR)/%.o: %.cpp $(INCS) Makefile | $(BUILD_DIR)
+	$(CXX) -c -o $@ $(CFLAGS) $<
 
 ifeq ($(SAVE_TO), file)
 $(TARGET): $(BUILD_OBJS) Makefile | $(BUILD_DIR) $(MEDIA_DIR)
-	$(CC) -o $@ $(BUILD_OBJS) $(LIBS)
+	$(CXX) -o $@ $(BUILD_OBJS) $(LIBS)
 else
 $(TARGET): $(BUILD_OBJS) Makefile | $(BUILD_DIR)
-	$(CC) -o $@ $(BUILD_OBJS) $(LIBS)
+	$(CXX) -o $@ $(BUILD_OBJS) $(LIBS)
 endif
 
 gen-graph: $(TARGET) | $(GRAPHS_DIR)

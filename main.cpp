@@ -3,10 +3,10 @@
 #include "gst/gstelement.h"
 #include <stdio.h>
 
-#include "bus_call.h"
-#include "custom_bins.h"
-#include "probers.h"
-#include "udp_sender.h"
+#include "bus_call.hpp"
+#include "custom_bins.hpp"
+#include "probers.hpp"
+#include "udp_sender.hpp"
 
 int main(int argc, char *argv[]) {
     GMainLoop *loop = NULL;
