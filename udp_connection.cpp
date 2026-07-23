@@ -6,12 +6,12 @@
 #include <sys/socket.h>
 #include <iostream>
 
-#include "udp_sender.hpp"
+#include "udp_connection.hpp"
 
 UdpConnection::UdpConnection(std::string server_ip, uint16_t server_port)
     : server_ip(server_ip), server_port(server_port) {
     assert(!server_ip.empty());
-    assert(server_port < 1024);
+    assert(server_port >= 1024);
 
     if (this->sockfd >= 0) {
         std::cerr << "udp_connection_init: socket connection already init" << std::endl;
