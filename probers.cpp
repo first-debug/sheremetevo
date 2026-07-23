@@ -161,11 +161,12 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
                 gint y = (gint) (obj_meta->rect_params.top +
                         obj_meta->rect_params.height);
 
+                // get a geo point in format (lng, lat)
                 std::pair geo_coords = prob_data->transformers[frame_meta->pad_index].pixel_to_geo(x, y);
 
                 future_t future = {
-                    .lat = geo_coords.first,
-                    .lng = geo_coords.second,
+                    .lat = geo_coords.second,
+                    .lng = geo_coords.first,
                     .object_id = static_cast<int>(obj_meta->object_id),
                     .name = "самолёт",
                     .confidence = obj_meta->confidence,
@@ -286,7 +287,7 @@ void draw_point_with_latlng(NvDsBatchMeta* batch_meta, NvDsFrameMeta* frame_meta
 
     NvOSD_TextParams* label = &display_meta->text_params[display_meta->num_labels];
     char buffer[128];
-    snprintf(buffer, sizeof(buffer), "lat: %.6f lng: %.6f", lat, lng);
+    snprintf(buffer, sizeof(buffer), "lat: %.4f lng: %.4f", lat, lng);
 
     label->display_text = strdup(buffer);
 
