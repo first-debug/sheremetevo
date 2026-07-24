@@ -1,7 +1,8 @@
 #include "callbacks.hpp"
+#include <cassert>
 
-void cb_newpad(GstElement *bin, GstPad *pad, gpointer data) {
-    GstElement *depay = (GstElement *)data;
+void cb_newpad(GstElement *bin, GstPad *pad, gpointer u_data) {
+    GstElement *depay = (GstElement *)u_data;
 
     GstCaps *new_pad_caps = gst_pad_get_current_caps(pad);
     GstStructure *structure = gst_caps_get_structure(new_pad_caps, 0);

@@ -23,4 +23,6 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
         GstPadProbeInfo * info,
         gpointer u_data);
 
+GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
+
 #endif // PROBERS_H

@@ -7,6 +7,7 @@
 #include "gstnvdsmeta.h"
 #include "nvdsmeta.h"
 
+#include "contexts.hpp"
 #include "probers.hpp"
 #include "message.hpp"
 #include "serializer.hpp"
@@ -223,6 +224,17 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
 
     g_array_free(new_futures_array, TRUE);
 
+    return GST_PAD_PROBE_OK;
+}
+
+// TODO: добавить watchdog логику
+GstPadProbeReturn
+buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+    SourceCtx *src = (SourceCtx *)user_data;
+    src->mutex.lock();
+    src->last_buffer_time = g_get_monotonic_time();
+    src->mutex.unlock();
     return GST_PAD_PROBE_OK;
 }
 

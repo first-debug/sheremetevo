@@ -53,32 +53,28 @@ int main(int argc, char *argv[]) {
 
     g_object_set(G_OBJECT(pgie), "config-file-path", argv[1], NULL);
 
+    AppCtx ctx = {
+        .loop = loop,
+        .pipeline = pipeline,
+        .streammux = streammux,
+        .shutting_down = false
+    };
+
     gchar buffer[40];
     GstElement *new_bin = NULL;
     for (int i = 3, index; i < argc; i++) {
         index = i - 3;
-        new_bin = create_source_bin(argv[i], index);
+        SourceCtx *src_ctx = &ctx.sources[index];
+        src_ctx->index = index;
+        src_ctx->uri = g_strdup(argv[i]);
+        src_ctx->last_buffer_time = g_get_monotonic_time();
 
-        if (new_bin == NULL) {
-            g_printerr("Cannot create rtsp source bin for uri = %s\n", argv[i]);
-            continue;
+        if (!attach_source(&ctx, index)) {
+            RetryArg *r = g_new0(RetryArg, 1);
+            r->app = &ctx;
+            r->index = i;
+            g_timeout_add_seconds(RECONNECT_RETRY_DELAY_SEC, retry_attach_cb, r);
         }
-
-        gst_bin_add_many(GST_BIN(pipeline), new_bin, NULL);
-
-        snprintf(buffer, 17, "sink_%1d", index);
-        src_pad = gst_element_get_static_pad(new_bin, "src");
-        sink_pad = gst_element_request_pad_simple(streammux, buffer);
-
-        if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
-            g_printerr("Cannot link bin_src and streammux.\n");
-            gst_object_unref(src_pad);
-            gst_object_unref(sink_pad);
-            return -1;
-        }
-
-        gst_object_unref(src_pad);
-        gst_object_unref(sink_pad);
     }
 
     if (streammux->numsinkpads == 0) {
@@ -153,8 +149,7 @@ int main(int argc, char *argv[]) {
 
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "sheremetevo");
     bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
-    BusCallData data = { loop, pipeline };
-    bus_watch_id = gst_bus_add_watch(bus, bus_call, &data);
+    bus_watch_id = gst_bus_add_watch(bus, bus_call, &ctx);
     gst_object_unref(bus);
 
     g_print("\nStarting pipline...\n");
