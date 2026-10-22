@@ -39,8 +39,9 @@ cd sheremetevo
 cp .env.example .env
 ```
 
-Конфиги готовятся так же, как для разработки (см. README), с одним отличием:
-в образе парсер YOLO лежит по другому пути. В `configs/config_infer_primary_yolo.txt`:
+Конфиги готовятся так же, как для разработки (см. README). Парсер YOLO в образе
+лежит по пути, который уже указан в шаблоне `config_infer_primary_yolo.txt.example`;
+если конфиг заводился раньше, проверьте в `configs/config_infer_primary_yolo.txt`:
 
 ```
 custom-lib-path=/opt/DeepStream-Yolo/nvdsinfer_custom_impl_Yolo/libnvdsinfer_custom_impl_Yolo.so
@@ -68,7 +69,8 @@ docker compose logs -f
 ```
 
 При старте в логе видна ошибка репроекции калибровки по каждой камере
-(`[CALIB] camera N: ...`), затем раз в 5 секунд статистика по потокам.
+(`[CALIB] camera N: ...`), затем раз в 5 минут статистика по потокам (`[STATS]`;
+раз в 5 секунд — при `[logging] level=debug`).
 
 Остановка: `docker compose down`. Приложение получает SIGTERM, закрывает
 RTSP-сессии и энкодеры и завершается; на это отведено 20 секунд.
@@ -170,7 +172,8 @@ APP_VERSION=<старый тег> docker compose up -d
 | `DS_IMAGE` | `nvcr.io/nvidia/deepstream:9.0-triton-multiarch` | Базовый образ DeepStream. Должен совпадать с образом разработки. |
 | `DSYOLO_REF` | `master` | Коммит DeepStream-Yolo. Для воспроизводимой сборки укажите коммит, с которым проверена модель. |
 | `APP_VERSION` | `latest` | Тег образа. |
-| `APP_CONFIG` | `app.ini` | Конфиг из `configs/`, с которым запускается приложение (например `app.test-video.ini`). |
+| `GIT_SHA` | `unknown` | Коммит, из которого собран образ (метка образа). Обычно задаётся при сборке, см. «Обновление и откат». |
+| `APP_CONFIG` | `app.ini` | Конфиг из `configs/`, с которым запускается приложение (например `app.test.ini` для [прогона на видео](configuration.md#тестовый-прогон-без-камер)). |
 | `HEALTH_MAX_FRAME_AGE_SEC` | `60` | Сколько секунд без обработанных кадров контейнер ещё считается здоровым. |
 | `GST_DEBUG` | `1` | Логи GStreamer: `1` — ошибки, `2` — и предупреждения, `3`+ — для отладки. |
 | `TZ` | `Europe/Moscow` | Часовой пояс в логах. |

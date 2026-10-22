@@ -6,9 +6,11 @@
 ./build/sheremetevo-app configs/app.ini
 ```
 
-Настоящие конфиги (`configs/app.ini`, `configs/config_infer_primary_yolo.txt`,
+Настоящие конфиги (`configs/app*.ini`, `configs/config_infer_primary_yolo.txt`,
 `configs/warper*.toml`, `configs/calibration/*.csv`) содержат адреса и калибровку
 конкретной установки и в git не хранятся. В репозитории лежат шаблоны `*.example`.
+В `app.ini.example` перечислены все группы и ключи, которые читает приложение;
+`make test` проверяет, что шаблон загружается и ни одна группа не пропала.
 
 | Файл | Кто читает | Шаблон |
 | :--- | :--- | :--- |
@@ -16,7 +18,8 @@
 | `configs/config_infer_primary_yolo.txt` | `nvinfer` | [`config_infer_primary_yolo.txt.example`](../configs/config_infer_primary_yolo.txt.example) |
 | `configs/warper.toml` (можно свой на камеру) | `nvdewarper` | [`warper.toml.example`](../configs/warper.toml.example) |
 | `configs/calibration/cameraN.csv` | приложение | [`camera.csv.example`](../configs/calibration/camera.csv.example) |
-| `configs/app.test-video.ini` | приложение | пример прогона трекера на тестовом видео |
+| `configs/zone.csv` (необязательно) | приложение | [`zone.csv.example`](../configs/zone.csv.example) |
+| `.env` (только Docker) | `docker compose` | [`.env.example`](../.env.example), см. [deploy.md](deploy.md#настройки-env) |
 
 ## app.ini
 
@@ -49,6 +52,17 @@
 | :--- | :--- | :--- |
 | `stall-timeout-sec` | `10` | Камера без кадров дольше этого времени считается зависшей и перезапускается, > 0 |
 | `reconnect-interval-sec` | `5` | Пауза перед повторным подключением после ошибки или зависания, > 0. Для видеовыхода — первая пауза перед перезапуском, дальше она растёт вдвое до 60 с |
+
+### [health]
+
+Необязательная группа: heartbeat для Docker HEALTHCHECK и аварийные перезапуски.
+Подробнее — [deploy.md](deploy.md).
+
+| Ключ | По умолчанию | Описание |
+| :--- | :--- | :--- |
+| `heartbeat-file` | `/tmp/sheremetevo-health` | Файл, куда раз в 2 с пишется состояние (возраст последнего кадра, сколько камер шлют кадры). Пусто — не писать. В Docker должен совпадать с `HEALTH_FILE` в `docker-compose.yml` |
+| `hang-timeout-sec` | `60` | Главный цикл не отвечает дольше — аварийный выход. `0` — не следить, ≥ 0 |
+| `no-frames-restart-sec` | `300` | Ни одного обработанного кадра со всех камер дольше — штатная остановка с кодом 1 для перезапуска. `0` — не перезапускать, ≥ 0 |
 
 ### [logging]
 
@@ -184,10 +198,10 @@ calibration=calibration/camera0.csv
 | `model-engine-file` | Готовый TensorRT engine. Если файла нет или он не подходит, `nvinfer` строит engine из ONNX при старте |
 | `labelfile-path` | `labels.txt`, создаётся скриптом экспорта |
 | `batch-size` | Равен числу камер. Если камер больше, `nvinfer` обрабатывает пачку в несколько проходов (больше задержка и нагрузка на GPU), при старте пишется предупреждение `[CONFIG]` |
-| `network-mode` | `0` — FP32, `2` — FP16 (быстрее, точность обычно почти не меняется), `1` — INT8 (нужна калибровка) |
+| `network-mode` | `0` — FP32, `2` — FP16 (быстрее, точность обычно почти не меняется), `1` — INT8 (нужен файл калибровки `int8-calib-file`, см. [model.md](model.md)) |
 | `filter-out-class-ids` | Все классы COCO, кроме 4 (`airplane`). Должно совпадать с `[app] class-id` |
 | `cluster-mode` | `4` — без кластеризации: YOLO26 сам отдаёт итоговые рамки (NMS-free) |
-| `custom-lib-path` | Путь к `libnvdsinfer_custom_impl_Yolo.so` из DeepStream-Yolo. В Docker-образе проекта — `/opt/DeepStream-Yolo/nvdsinfer_custom_impl_Yolo/libnvdsinfer_custom_impl_Yolo.so` |
+| `custom-lib-path` | Путь к `libnvdsinfer_custom_impl_Yolo.so` из DeepStream-Yolo. В шаблоне — путь в Docker-образе проекта, `/opt/DeepStream-Yolo/nvdsinfer_custom_impl_Yolo/libnvdsinfer_custom_impl_Yolo.so`; при сборке вне образа укажите путь к своей копии |
 | `pre-cluster-threshold` | Порог уверенности детекции, `0.25` |
 
 `parse-bbox-func-name=NvDsInferParseYoloCuda` и
@@ -211,7 +225,26 @@ calibration=calibration/camera0.csv
 
 ## Тестовый прогон без камер
 
-`configs/app.test-video.ini` — пример запуска на записанном видео: файл раздаётся как
-RTSP через `ffmpeg` (с перекодированием без B-кадров), поворот и выпрямление не нужны.
-Калибровка к видео не относится, поэтому координаты в сообщениях смысла не имеют —
-так проверяют детекцию и трекинг. Команда для `ffmpeg` — в комментарии в начале файла.
+Детекцию и трекинг можно проверить на записанном видео. Видео раздаётся как RTSP
+(например, через MediaMTX); B-кадры нужно убрать перекодированием, потому что
+декодер работает с `disable-dpb`:
+
+```
+ffmpeg -re -stream_loop -1 -i video.mp4 -an \
+  -c:v libx264 -preset veryfast -tune zerolatency -bf 0 -g 30 \
+  -f rtsp -rtsp_transport tcp rtsp://<rtsp-host>:8554/test
+```
+
+Конфиг — копия `app.ini` (например, `configs/app.test.ini`, в git он не попадёт), в которой:
+
+- одна группа `[camera0]` с `uri=rtsp://<rtsp-host>:8554/test`, без `flip-method`
+  и `dewarper-config`; `calibration` обязателен, подойдёт любой файл из 4+ точек;
+- `frame-width`/`frame-height` — размер кадра видео, `batched-push-timeout-us` — один
+  кадр (33333 при 30 fps);
+- размер кадра трекера — с пропорциями видео и кратно 32 (1280×704 для 1280×720);
+- `[geo] zone` не задан: зона к видео не относится;
+- `[logging] level=debug`, если нужна статистика по камере раз в 5 с.
+
+Координаты в сообщениях при этом смысла не имеют — смотрят на рамки и id треков в
+видеовыходе. Запуск: `./build/sheremetevo-app configs/app.test.ini`, в Docker —
+`APP_CONFIG=app.test.ini` в `.env`.

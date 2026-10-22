@@ -1,3 +1,4 @@
+#include <glib.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fstream>
@@ -216,6 +217,27 @@ TEST("app_config: configs/app.ini.example is a valid config") {
     CHECK_EQ(config.cameras.size(), size_t(4));
     CHECK_EQ(config.tracker_enabled, true);
     CHECK_EQ(config.udp_max_datagram_bytes, 1400);
+    CHECK_EQ(config.log_level, std::string("info"));
+    CHECK_EQ(config.metrics_port, 9464);
+}
+
+// Шаблон — справочник по настройкам: в нём должна быть каждая группа,
+// которую читает load_app_config, даже необязательная
+TEST("app_config: configs/app.ini.example has every config group") {
+    GKeyFile *kf = g_key_file_new();
+    GError *err = NULL;
+    bool loaded = g_key_file_load_from_file(kf, TEST_SRC_DIR "/configs/app.ini.example",
+                                            G_KEY_FILE_NONE, &err);
+    g_clear_error(&err);
+    REQUIRE(loaded);
+    const char *groups[] = {"app", "rtsp", "health", "logging", "metrics", "output",
+                            "udp", "geo", "tracker", "camera0"};
+    for (const char *group : groups) {
+        if (!g_key_file_has_group(kf, group)) {
+            CHECK_EQ(std::string("missing [") + group + "]", std::string(""));
+        }
+    }
+    g_key_file_free(kf);
 }
 
 TEST("app_config: missing file") {

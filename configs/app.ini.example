@@ -29,6 +29,30 @@ hang-timeout-sec=60
 # с кодом 1 для перезапуска; 0 — не перезапускать
 no-frames-restart-sec=300
 
+[logging]
+# Журнал приложения; группа необязательна. Строка журнала: время, уровень,
+# компонент, камера. debug и info идут в stdout, warning и error — в stderr.
+# уровень: debug, info, warning, error
+level=info
+# text — для чтения глазами, json — по записи на строку для Loki/ELK/jq
+format=text
+# файл журнала в дополнение к stdout/stderr, папка должна существовать;
+# не задан или пустой — не писать (в Docker логи и так собирает Docker)
+#file=/var/log/sheremetevo/app.log
+# ротация: при превышении размера app.log -> app.log.1 -> ... -> app.log.<max-files>;
+# max-size-mb=0 — без ротации
+max-size-mb=50
+max-files=5
+
+[metrics]
+# Метрики Prometheus на http://<bind-address>:<port>/metrics (fps, задержка,
+# статус и перезапуски камер, отправка UDP); группа необязательна.
+# false или нет группы — порт не открывается
+enabled=false
+# 127.0.0.1 — доступны только с этой машины
+bind-address=0.0.0.0
+port=9464
+
 [output]
 # видео с разметкой: <uri-prefix>_<номер камеры>; false — без видеовыхода (быстрее)
 enabled=true

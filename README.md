@@ -36,6 +36,8 @@
    cp configs/calibration/camera.csv.example configs/calibration/camera0.csv   # и так для каждой камеры
    ```
 
+   Необязательно: `configs/zone.csv.example` — зона, вне которой точки не отправляются.
+
 2. Экспортируйте модель `models/yolo26m.pt` в ONNX скриптом `models/export_yolo26.py`
    ([docs/model.md](docs/model.md)).
 
