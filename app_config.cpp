@@ -89,6 +89,7 @@ bool get_bool(GKeyFile *kf, const char *group, const char *key, bool &out, std::
 
 bool parse_config(GKeyFile *kf, const std::string &base_dir, AppConfig &config, std::string &error) {
     if (!get_string(kf, "app", "nvinfer-config", true, config.nvinfer_config, error) ||
+            !get_int(kf, "app", "class-id", config.class_id, error) ||
             !get_int(kf, "app", "frame-width", config.frame_width, error) ||
             !get_int(kf, "app", "frame-height", config.frame_height, error) ||
             !get_int(kf, "app", "batched-push-timeout-us", config.batched_push_timeout_us, error) ||
@@ -117,6 +118,10 @@ bool parse_config(GKeyFile *kf, const std::string &base_dir, AppConfig &config, 
         return false;
     }
 
+    if (config.class_id < -1) {
+        error = "[app] class-id must be -1 (any class) or a class index";
+        return false;
+    }
     if (config.frame_width <= 0 || config.frame_height <= 0) {
         error = "[app] frame-width and frame-height must be positive";
         return false;

@@ -34,6 +34,7 @@
 | `frame-width` | `1728` | Ширина кадра в пачке `nvstreammux`, > 0 |
 | `frame-height` | `2752` | Высота кадра в пачке `nvstreammux`, > 0 |
 | `batched-push-timeout-us` | `40000` | Сколько `nvstreammux` ждёт отставшую камеру, мкс. Разумно — один-полтора интервала между кадрами (40000 при 25 fps) |
+| `class-id` | `4` | Класс детектора, который считается самолётом (4 — `airplane` в COCO). Объекты других классов не отправляются. `-1` — любой класс |
 
 Все камеры приводятся к одному размеру `frame-width` × `frame-height`. В этих же
 координатах детектор отдаёт рамки и в них же должны быть заданы пиксели
@@ -184,7 +185,7 @@ calibration=calibration/camera0.csv
 | `labelfile-path` | `labels.txt`, создаётся скриптом экспорта |
 | `batch-size` | Равен числу камер |
 | `network-mode` | `0` — FP32, `2` — FP16 (быстрее, точность обычно почти не меняется), `1` — INT8 (нужна калибровка) |
-| `filter-out-class-ids` | Все классы COCO, кроме 4 (`airplane`) |
+| `filter-out-class-ids` | Все классы COCO, кроме 4 (`airplane`). Должно совпадать с `[app] class-id` |
 | `cluster-mode` | `4` — без кластеризации: YOLO26 сам отдаёт итоговые рамки (NMS-free) |
 | `custom-lib-path` | Путь к `libnvdsinfer_custom_impl_Yolo.so` из DeepStream-Yolo. В Docker-образе проекта — `/opt/DeepStream-Yolo/nvdsinfer_custom_impl_Yolo/libnvdsinfer_custom_impl_Yolo.so` |
 | `pre-cluster-threshold` | Порог уверенности детекции, `0.25` |

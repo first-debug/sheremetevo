@@ -115,6 +115,7 @@ int main(int argc, char *argv[]) {
     pgie_probe_data probe_data;
     probe_data.sender = &sender;
     probe_data.min_aspect_ratio = config.min_aspect_ratio;
+    probe_data.class_id = config.class_id;
     probe_data.transformers.reserve(num_sources);
 
     for (int cam = 0; cam < num_sources; cam++) {

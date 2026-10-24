@@ -10,6 +10,8 @@ frame-width=1728
 frame-height=2752
 # сколько nvstreammux ждёт отставшую камеру, прежде чем отправить пачку без неё
 batched-push-timeout-us=40000
+# класс детектора, который считается самолётом (4 — airplane в COCO); -1 — любой
+class-id=4
 
 [rtsp]
 # камера без кадров дольше stall-timeout-sec (или с ошибкой) перезапускается;

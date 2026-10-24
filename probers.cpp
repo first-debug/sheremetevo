@@ -130,10 +130,11 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad *,
             NvDsObjectMeta *obj_meta = (NvDsObjectMeta *) obj_meta_list->data;
             const NvOSD_RectParams &rect = obj_meta->rect_params;
 
-            // Пропорции bbox (самолёт вытянут по горизонтали);
+            // Класс детектора и пропорции bbox (самолёт вытянут по горизонтали);
             // точка — середина нижней стороны bbox, она должна быть ниже горизонта
             // и внутри зоны камеры. Отсеянные объекты рисуются серым и не отправляются.
-            bool accepted = rect.height > 0 && rect.width / rect.height > prob_data->min_aspect_ratio;
+            bool accepted = (prob_data->class_id < 0 || obj_meta->class_id == prob_data->class_id) &&
+                    rect.height > 0 && rect.width / rect.height > prob_data->min_aspect_ratio;
 
             // (lng, lat)
             std::optional<std::pair<double, double>> geo_coords;

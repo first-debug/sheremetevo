@@ -96,6 +96,7 @@ TEST("app_config: minimal config gets defaults for optional sections") {
     REQUIRE(r.ok);
     const AppConfig &c = r.config;
 
+    CHECK_EQ(c.class_id, 4);
     CHECK_EQ(c.frame_width, 1728);
     CHECK_EQ(c.frame_height, 2752);
     CHECK_EQ(c.batched_push_timeout_us, 40000);
@@ -268,6 +269,8 @@ TEST("app_config: values out of range") {
                    "[geo] ransac-threshold-m");
     CHECK_CONTAINS(load_error(replace(kMinimal, "uri=rtsp://cam/0", "uri=rtsp://cam/0\nflip-method=8")),
                    "[camera0] flip-method");
+    CHECK_CONTAINS(load_error(replace(kMinimal, "nvinfer-config=infer.txt", "nvinfer-config=infer.txt\nclass-id=-2")),
+                   "[app] class-id");
 }
 
 TEST("app_config: boundary values are accepted") {
@@ -280,6 +283,11 @@ TEST("app_config: boundary values are accepted") {
 
     r = load(kMinimal + "[health]\nhang-timeout-sec=0\nno-frames-restart-sec=0\n");
     REQUIRE(r.ok);
+
+    // -1 — объекты любого класса
+    r = load(replace(kMinimal, "nvinfer-config=infer.txt", "nvinfer-config=infer.txt\nclass-id=-1"));
+    REQUIRE(r.ok);
+    CHECK_EQ(r.config.class_id, -1);
 }
 
 TEST("app_config: tracker errors") {
