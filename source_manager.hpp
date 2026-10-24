@@ -64,7 +64,7 @@ bool source_manager_add(SourceManager &manager, GstElement *pipeline, GstElement
 void source_manager_on_error(SourceManager &manager, GstElement *bin, const gchar *reason);
 
 // Перед отправкой EOS при остановке: EOS от камер больше не отбрасывается,
-// а за остановленные камеры EOS отправляется прямо в nvstreammux.
+// а за камеры без кадров EOS отправляется прямо в nvstreammux.
 void source_manager_shutdown(SourceManager &manager);
 
 // Камера работает и кадр от неё был не дольше stall_timeout_sec назад.

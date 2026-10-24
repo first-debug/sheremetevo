@@ -110,12 +110,15 @@ void source_manager_on_error(SourceManager &manager, GstElement *bin, const gcha
 
 void source_manager_shutdown(SourceManager &manager) {
     manager.shutting_down = true;
+    const gint64 now = g_get_monotonic_time();
 
     for (auto &slot : manager.slots) {
-        if (slot->state != SourceSlot::State::Stopped) {
+        if (source_manager_is_receiving(manager, *slot, now)) {
             continue;
         }
-        // Остановленная камера EOS не пришлёт, а nvstreammux ждёт его от всех входов
+        // Камера, от которой не идут кадры (остановлена или ещё подключается),
+        // EOS не пришлёт, а nvstreammux ждёт его от всех входов. Если она всё же
+        // пришлёт свой, второй EOS на том же входе просто отбрасывается.
         GstPad *src_pad = gst_element_get_static_pad(slot->bin, "src");
         GstPad *mux_pad = src_pad ? gst_pad_get_peer(src_pad) : NULL;
         if (mux_pad) {
