@@ -40,6 +40,10 @@ struct pgie_probe_data {
     std::vector<guint64> last_frames;
     std::vector<guint64> last_objects;
     std::vector<double> fps;
+    // то же на начало интервала сводки в журнале
+    std::vector<guint64> summary_frames;
+    std::vector<guint64> summary_objects;
+    gint64 summary_since_us = 0;
 
     void init_stats(size_t streams) {
         num_streams = streams;
@@ -47,10 +51,15 @@ struct pgie_probe_data {
         last_frames.assign(streams, 0);
         last_objects.assign(streams, 0);
         fps.assign(streams, 0.0);
+        summary_frames.assign(streams, 0);
+        summary_objects.assign(streams, 0);
+        summary_since_us = g_get_monotonic_time();
     }
 };
 
-// Печатает fps и число объектов по каждой камере за прошедший интервал.
+// Считает fps каждой камеры за прошедший интервал (для метрик) и пишет его
+// в журнал на уровне debug; раз в 5 минут — одна строка
+// сводки по всем камерам на уровне info.
 // Предназначена для g_timeout_add_seconds, user_data — pgie_probe_data.
 gboolean print_stream_stats(gpointer user_data);
 

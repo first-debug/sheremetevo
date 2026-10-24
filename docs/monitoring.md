@@ -17,7 +17,7 @@
 
 ```
 2026-10-21T17:31:45.123+03:00 INFO  [CALIB] camera 0: inliers 18/20, reprojection error median 2.1 m, p90 4.0 m, max 6.3 m
-2026-10-21T17:31:50.002+03:00 INFO  [STATS] camera=0 25.0 fps, 1.3 objects/frame
+2026-10-21T17:36:45.002+03:00 INFO  [STATS] last 5 min: camera 0: 25.0 fps 1.3 obj, camera 1: 24.9 fps 0.0 obj
 2026-10-21T17:32:10.517+03:00 ERROR [CAMERA] camera=2 camera lost: no frames for 10 s, reconnecting in 5 s
 2026-10-21T17:32:15.520+03:00 WARN  [RTSP] camera=2 Could not open resource for reading, reconnecting in 5 s (attempt 2, down for 5 s)
 2026-10-21T17:33:02.004+03:00 INFO  [CAMERA] camera=2 camera restored after 52 s down, 3 reconnect attempt(s)
@@ -43,7 +43,7 @@
 | :--- | :--- |
 | `CAMERA` | Пропажа и восстановление камеры (см. ниже) |
 | `RTSP` | Повторные неудачные попытки подключения, EOS от сервера камеры |
-| `STATS` | Раз в 5 с: fps и число объектов по каждой камере; `warn`, если кадров нет |
+| `STATS` | Раз в 5 мин (`info`): средние fps и число объектов на кадр по каждой камере. На `debug` — то же раз в 5 с отдельной строкой на камеру |
 | `CALIB` | Качество калибровки каждой камеры при старте |
 | `HEALTH` | Heartbeat-файл, перезапуск из-за отсутствия кадров, зависание главного цикла |
 | `METRICS` | Адрес эндпоинта метрик, ошибка открытия порта |
@@ -107,7 +107,7 @@ port=9464
 | `sheremetevo_camera_down_seconds{camera}` | gauge | Длительность текущего простоя камеры, `0`, если работает |
 | `sheremetevo_camera_last_frame_age_seconds{camera}` | gauge | Сколько секунд назад пришёл последний кадр, `-1` — кадров ещё не было |
 | `sheremetevo_camera_restarts_total{camera}` | counter | Перезапуски камеры после ошибки или зависания |
-| `sheremetevo_camera_fps{camera}` | gauge | fps на выходе анализа за последние 5 с (то же, что в `[STATS]`) |
+| `sheremetevo_camera_fps{camera}` | gauge | fps на выходе анализа за последние 5 с (то же, что в `[STATS]` на уровне `debug`) |
 | `sheremetevo_camera_frames_total{camera}` | counter | Обработанные кадры |
 | `sheremetevo_camera_objects_total{camera}` | counter | Найденные объекты |
 | `sheremetevo_camera_latency_seconds_sum{camera}`, `_count` | summary | Задержка обработки: от прихода кадра в `nvstreammux` до выхода из детектора/трекера |

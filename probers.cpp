@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <time.h>
+#include <string>
 
 #include "gstnvdsmeta.h"
 #include "nvdsmeta.h"
@@ -165,6 +166,9 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad *,
     return GST_PAD_PROBE_OK;
 }
 
+// Сводка в журнал раз в 5 минут: подробные цифры есть в метриках и в debug
+static const gint64 STATS_SUMMARY_INTERVAL_SEC = 300;
+
 gboolean print_stream_stats(gpointer user_data) {
     pgie_probe_data *prob_data = static_cast<pgie_probe_data *>(user_data);
 
@@ -186,14 +190,33 @@ gboolean print_stream_stats(gpointer user_data) {
         prob_data->last_objects[i] = total_objects;
         prob_data->fps[i] = frames / seconds;
 
-        if (frames) {
-            log_write(LogLevel::Info, "STATS", static_cast<int>(i), "%.1f fps, %.1f objects/frame",
-                    prob_data->fps[i], (double)objects / frames);
-        } else {
-            log_write(LogLevel::Warning, "STATS", static_cast<int>(i),
-                    "0.0 fps (no frames reach inference)");
-        }
+        log_write(LogLevel::Debug, "STATS", static_cast<int>(i), "%.1f fps, %.1f objects/frame",
+                prob_data->fps[i], frames ? (double)objects / frames : 0.0);
     }
+
+    double summary_seconds = (now - prob_data->summary_since_us) / 1e6;
+    if (summary_seconds < STATS_SUMMARY_INTERVAL_SEC) {
+        return G_SOURCE_CONTINUE;
+    }
+
+    // "camera 0: 25.0 fps 1.3 obj, camera 1: ..." за весь интервал сводки
+    std::string summary;
+    for (size_t i = 0; i < prob_data->num_streams; i++) {
+        guint64 total_frames = prob_data->counters[i].frames;
+        guint64 total_objects = prob_data->counters[i].objects;
+        guint64 frames = total_frames - prob_data->summary_frames[i];
+        guint64 objects = total_objects - prob_data->summary_objects[i];
+        prob_data->summary_frames[i] = total_frames;
+        prob_data->summary_objects[i] = total_objects;
+
+        gchar *part = g_strdup_printf("%scamera %zu: %.1f fps %.1f obj", i ? ", " : "", i,
+                frames / summary_seconds, frames ? (double)objects / frames : 0.0);
+        summary += part;
+        g_free(part);
+    }
+    prob_data->summary_since_us = now;
+    LOG_INFO("STATS", "last %.0f min: %s", summary_seconds / 60, summary.c_str());
+
     return G_SOURCE_CONTINUE;
 }
 
