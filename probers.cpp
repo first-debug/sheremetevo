@@ -15,6 +15,17 @@
 
 void draw_object_meta(NvOSD_RectParams* bounding_box, NvOSD_TextParams* text_params,
                       const std::string& class_name, int64_t track_id, float confidence);
+void draw_rejected_object(NvOSD_RectParams* bounding_box, NvOSD_TextParams* text_params);
+void draw_rejected_object(NvOSD_RectParams* bounding_box, NvOSD_TextParams* text_params) {
+    bounding_box->border_width = 1;
+    bounding_box->has_bg_color = 0;
+    bounding_box->border_color = {0.6, 0.6, 0.6, 0.8};
+
+    // подпись nvinfer (имя класса) убираем, чтобы не путать с отправленными объектами
+    g_free(text_params->display_text);
+    text_params->display_text = NULL;
+}
+
 void draw_point_with_latlng(NvDsBatchMeta* batch_meta, NvDsFrameMeta* frame_meta,
                              NvDsDisplayMeta*& display_meta,
                              const NvOSD_RectParams& bbox, double lat, double lng);
@@ -117,19 +128,22 @@ GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad *,
 
         for (; obj_meta_list != NULL; obj_meta_list = obj_meta_list->next) {
             NvDsObjectMeta *obj_meta = (NvDsObjectMeta *) obj_meta_list->data;
+            const NvOSD_RectParams &rect = obj_meta->rect_params;
 
-            // проверка размера bbox'а
-            if (obj_meta->rect_params.height == 0 ||
-                    obj_meta->rect_params.width / obj_meta->rect_params.height <= prob_data->min_aspect_ratio) {
-                continue;
+            // Пропорции bbox (самолёт вытянут по горизонтали);
+            // точка — середина нижней стороны bbox, она должна быть ниже горизонта
+            // и внутри зоны камеры. Отсеянные объекты рисуются серым и не отправляются.
+            bool accepted = rect.height > 0 && rect.width / rect.height > prob_data->min_aspect_ratio;
+
+            // (lng, lat)
+            std::optional<std::pair<double, double>> geo_coords;
+            if (accepted) {
+                geo_coords = transformer.pixel_to_geo(rect.left + rect.width / 2, rect.top + rect.height);
+                accepted = geo_coords &&
+                        prob_data->zones[stream_id].contains(geo_coords->first, geo_coords->second);
             }
-
-            gdouble x = obj_meta->rect_params.left + obj_meta->rect_params.width / 2;
-            gdouble y = obj_meta->rect_params.top + obj_meta->rect_params.height;
-
-            // get a geo point in format (lng, lat)
-            auto geo_coords = transformer.pixel_to_geo(x, y);
-            if (!geo_coords || !prob_data->zones[stream_id].contains(geo_coords->first, geo_coords->second)) {
+            if (!accepted) {
+                draw_rejected_object(&obj_meta->rect_params, &obj_meta->text_params);
                 continue;
             }
 
