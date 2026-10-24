@@ -46,6 +46,11 @@ gboolean bus_call(GstBus *, GstMessage *msg, gpointer data) {
                     source_manager_on_error(*data_struct->sources, source_bin, error->message);
                 }
                 gst_object_unref(source_bin);
+            } else if (data_struct->outputs != NULL &&
+                    output_manager_on_error(*data_struct->outputs, GST_MESSAGE_SRC(msg), error->message)) {
+                // Сбой видеовыхода не останавливает анализ: ветка перезапустится
+                LOG_DEBUG("GST", "error in video output (%s): %s | %s",
+                        src_name, error->message, debug ? debug : "");
             } else {
                 LOG_ERROR("GST", "error from %s: %s | %s", src_name, error->message, debug ? debug : "");
                 g_main_loop_quit(data_struct->loop);

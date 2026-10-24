@@ -4,6 +4,7 @@
 #include "gst/gstelement.h"
 #include <gst/gst.h>
 
+#include "output_manager.hpp"
 #include "source_manager.hpp"
 
 typedef struct {
@@ -11,6 +12,8 @@ typedef struct {
     GstElement *pipeline;
     // ошибки камер передаются сюда для переподключения
     SourceManager *sources;
+    // ошибки видеовыхода передаются сюда для перезапуска его ветки
+    OutputManager *outputs;
 } BusCallData;
 
 gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data);

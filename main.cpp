@@ -15,6 +15,7 @@
 #include "health.hpp"
 #include "log.hpp"
 #include "metrics.hpp"
+#include "output_manager.hpp"
 #include "points_sender.hpp"
 #include "probers.hpp"
 #include "source_manager.hpp"
@@ -24,6 +25,7 @@ typedef struct {
     GMainLoop *loop;
     GstElement *pipeline;
     SourceManager *sources;
+    OutputManager *outputs;
     gboolean eos_sent;
 } SignalData;
 
@@ -47,6 +49,7 @@ static gboolean on_terminate_signal(gpointer user_data) {
         LOG_INFO("APP", "stopping pipeline (send the signal again to force quit)");
         data->eos_sent = TRUE;
         source_manager_shutdown(*data->sources);
+        output_manager_shutdown(*data->outputs);
         gst_element_send_event(data->pipeline, gst_event_new_eos());
         g_timeout_add_seconds(EOS_TIMEOUT_SEC, on_eos_timeout, data);
     } else {
@@ -60,10 +63,8 @@ int main(int argc, char *argv[]) {
     GstElement *pipeline = NULL,
                *streammux = NULL,
                *pgie = NULL,
-               *nvosd = NULL,
                *tracker = NULL,
                *demux = NULL;
-    GstPad *src_pad = NULL, *sink_pad = NULL;
     GstBus *bus = NULL;
     guint bus_watch_id;
 
@@ -207,15 +208,13 @@ int main(int argc, char *argv[]) {
     sources.stall_timeout_sec = config.stall_timeout_sec;
     sources.reconnect_interval_sec = config.reconnect_interval_sec;
 
-    gchar buffer[40];
-    GstElement *new_bin = NULL;
     for (int index = 0; index < num_sources; index++) {
         const CameraConfig &camera = config.cameras[index];
         SourceTransform transform;
         transform.flip_method = camera.flip_method;
         transform.dewarper_config = camera.dewarper_config;
 
-        new_bin = create_source_bin(camera.uri.c_str(), index, transform,
+        GstElement *new_bin = create_source_bin(camera.uri.c_str(), index, transform,
                 config.frame_width, config.frame_height);
 
         // Номер входа связывает камеру с её калибровкой, поэтому пропускать
@@ -237,59 +236,13 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    OutputManager outputs;
+    outputs.reconnect_interval_sec = config.reconnect_interval_sec;
     for (int index = 0; config.output_enabled && index < num_sources; index++) {
         std::string output_uri = config.output_uri_prefix + "_" + std::to_string(index);
-        new_bin = create_sink_bin(output_uri.c_str(), index);
-        snprintf(buffer, 39, "nvosd_%1d", index);
-        nvosd = gst_element_factory_make("nvdsosd", buffer);
-
-        // Видеовыход отвязан от анализа очередью, которая выбрасывает старые
-        // кадры: если RTSP-сервер не принимает поток или тормозит, детекция и
-        // отправка координат продолжают работать.
-        snprintf(buffer, 39, "output_queue_%1d", index);
-        GstElement *output_queue = gst_element_factory_make("queue", buffer);
-
-        if (new_bin == NULL || nvosd == NULL || output_queue == NULL) {
-            g_printerr("Cannot create rtsp sink bin, queue or nvdsosd for uri = %s\n", output_uri.c_str());
+        if (!output_manager_add(outputs, pipeline, demux, index, output_uri)) {
             return -1;
         }
-
-        g_object_set(G_OBJECT(output_queue),
-                "leaky", 2,  // downstream: выбрасывать самые старые кадры
-                "max-size-buffers", 4,
-                "max-size-bytes", 0,
-                "max-size-time", (guint64)0,
-                NULL);
-
-        gst_bin_add_many(GST_BIN(pipeline), output_queue, nvosd, new_bin, NULL);
-
-        if (!gst_element_link(output_queue, nvosd)) {
-            g_printerr("Cannot link output queue and nvosd.\n");
-            return -1;
-        }
-
-        snprintf(buffer, 17, "src_%1d", index);
-        src_pad = gst_element_request_pad_simple(demux, buffer);
-        sink_pad = gst_element_get_static_pad(output_queue, "sink");
-
-        if (gst_pad_link(src_pad, sink_pad) != GST_PAD_LINK_OK) {
-            g_printerr("Cannot link demux and output queue.\n");
-            gst_object_unref(src_pad);
-            gst_object_unref(sink_pad);
-            gst_bin_remove_many(GST_BIN(pipeline), nvosd, new_bin, NULL);
-            return -1;
-        }
-
-        if (!gst_element_link(nvosd, new_bin)) {
-            g_printerr("Cannot link nvosd and new sink bin.\n");
-            gst_object_unref(src_pad);
-            gst_object_unref(sink_pad);
-            gst_bin_remove_many(GST_BIN(pipeline), nvosd, new_bin, NULL);
-            return -1;
-        }
-
-        gst_object_unref(src_pad);
-        gst_object_unref(sink_pad);
     }
 
     // Проба стоит после трекера, чтобы в сообщения попадали его object_id
@@ -297,17 +250,20 @@ int main(int argc, char *argv[]) {
 
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "sheremetevo");
     bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
-    BusCallData data = { loop, pipeline, &sources };
+    BusCallData data = { loop, pipeline, &sources, &outputs };
     bus_watch_id = gst_bus_add_watch(bus, bus_call, &data);
     gst_object_unref(bus);
 
-    SignalData signal_data = { loop, pipeline, &sources, FALSE };
+    SignalData signal_data = { loop, pipeline, &sources, &outputs, FALSE };
     guint sigint_id = g_unix_signal_add(SIGINT, on_terminate_signal, &signal_data);
     guint sigterm_id = g_unix_signal_add(SIGTERM, on_terminate_signal, &signal_data);
 
     probe_data.init_stats(num_sources);
     g_timeout_add_seconds(5, print_stream_stats, &probe_data);
     g_timeout_add_seconds(1, source_manager_watchdog, &sources);
+    if (!outputs.branches.empty()) {
+        g_timeout_add_seconds(1, output_manager_watchdog, &outputs);
+    }
 
     HealthMonitor health;
     health.heartbeat_file = config.heartbeat_file;
