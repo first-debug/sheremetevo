@@ -59,10 +59,6 @@ void set_probe(GstElement* element, const gchar *pad_name, GstPadProbeReturn (*p
         gpointer u_data),
         gpointer u_data);
 
-GstPadProbeReturn print_nvmeta_probe(GstPad * pad,
-        GstPadProbeInfo * info,
-        gpointer u_data);
-
 GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
         GstPadProbeInfo * info,
         gpointer u_data);

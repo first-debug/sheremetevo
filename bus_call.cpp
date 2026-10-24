@@ -21,7 +21,7 @@ static GstElement *find_source_bin(GstObject *object) {
     return NULL;
 }
 
-gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data) {
+gboolean bus_call(GstBus *, GstMessage *msg, gpointer data) {
     BusCallData *data_struct = (BusCallData *)data;
     switch (GST_MESSAGE_TYPE(msg)) {
         case GST_MESSAGE_EOS:

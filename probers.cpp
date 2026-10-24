@@ -26,7 +26,6 @@ void set_probe(GstElement* element,
         gpointer u_data),
         gpointer u_data
         ) {
-    GstElement *probed_element = element;
     GstPad *pad = gst_element_get_static_pad(element, pad_name);
     if (!pad) {
       g_printerr ("[PROBE] Error: Could not get pad '%s' from element '%s'\n",
@@ -44,80 +43,6 @@ void set_probe(GstElement* element,
     }
 
     gst_object_unref (pad);
-}
-
-GstPadProbeReturn print_nvmeta_probe(GstPad * pad,
-        GstPadProbeInfo * info,
-        gpointer u_data) {
-    GstBuffer *buf = (GstBuffer *) info->data;
-    NvDsBatchMeta *batch_meta = gst_buffer_get_nvds_batch_meta (buf);
-
-    if (!batch_meta) {
-        g_print ("[PROBE] Warning: No batch meta found!\n");
-        return GST_PAD_PROBE_OK;
-    }
-
-    g_print ("\n[PROBE] ========== Batch Meta Analysis ==========\n");
-    g_print ("[PROBE] Batch size: %u\n", batch_meta->num_frames_in_batch);
-
-    NvDsFrameMetaList *frame_meta_list = batch_meta->frame_meta_list;
-    guint frame_idx = 0;
-
-    while (frame_meta_list != NULL) {
-        NvDsFrameMeta *frame_meta = (NvDsFrameMeta *) frame_meta_list->data;
-
-        g_print ("\n[PROBE] --- Frame #%u ---\n", frame_idx);
-        g_print ("[PROBE]   source_id: %u\n", frame_meta->source_id);
-        g_print ("[PROBE]   batch_id: %u\n", frame_meta->batch_id);
-        g_print ("[PROBE]   pad_index (mux sink pad): %u\n", frame_meta->pad_index);
-        g_print ("[PROBE]   frame_num: %d\n", frame_meta->frame_num);
-        g_print ("[PROBE]   buf_pts: %lu\n", frame_meta->buf_pts);
-
-        NvDsObjectMetaList *obj_meta_list = frame_meta->obj_meta_list;
-        guint obj_count = 0;
-
-        while (obj_meta_list != NULL) {
-            NvDsObjectMeta *obj_meta = (NvDsObjectMeta *) obj_meta_list->data;
-
-            g_print ("[PROBE]   -> Object #%u:\n", obj_count);
-            g_print ("[PROBE]      class_id: %d\n", obj_meta->class_id);
-            g_print ("[PROBE]      unique_component_id: %d\n", obj_meta->unique_component_id);
-            g_print ("[PROBE]      confidence: %.4f\n", obj_meta->confidence);
-            g_print ("[PROBE]      bbox: left=%.2f, top=%.2f, width=%.2f, height=%.2f\n",
-                     obj_meta->rect_params.left,
-                     obj_meta->rect_params.top,
-                     obj_meta->rect_params.width,
-                     obj_meta->rect_params.height);
-            g_print ("[PROBE]      tracker_id: %ld\n", obj_meta->object_id);
-
-            if (obj_meta->unique_component_id != 1) {
-                g_print ("[PROBE]      WARNING: suspicious unique_component_id=%d (expected 1 for primary detector)\n",
-                         obj_meta->unique_component_id);
-            }
-
-            obj_count++;
-            obj_meta_list = obj_meta_list->next;
-        }
-
-        g_print ("[PROBE]   Total objects in this frame: %u\n", obj_count);
-
-        NvDisplayMetaList *display_meta_list = frame_meta->display_meta_list;
-        guint display_count = 0;
-        while (display_meta_list != NULL) {
-            display_count++;
-            display_meta_list = display_meta_list->next;
-        }
-        if (display_count > 0) {
-            g_print ("[PROBE]   Display meta entries: %u\n", display_count);
-        }
-
-        frame_idx++;
-        frame_meta_list = frame_meta_list->next;
-    }
-
-    g_print ("[PROBE] ========== End of Batch ==========\n\n");
-
-    return GST_PAD_PROBE_OK;
 }
 
 // Время кадра в секундах Unix-эпохи. nvstreammux проставляет ntp_timestamp
@@ -145,7 +70,7 @@ static void send_frame_message(pgie_probe_data *prob_data, guint camera_id,
     prob_data->sender->add_frame(msg);
 }
 
-GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad * pad,
+GstPadProbeReturn pgie_src_pad_buffer_probe(GstPad *,
         GstPadProbeInfo * info,
         gpointer u_data) {
     GstBuffer *buf = (GstBuffer *) info->data;
