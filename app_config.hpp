@@ -95,6 +95,12 @@ struct AppConfig {
 bool load_app_config(const std::string &path, AppConfig &config, std::string &error);
 
 /*
+ * Читает batch-size из секции [property] конфига nvinfer: под него собран
+ * TensorRT engine. Нет ключа — batch_size не меняется.
+ */
+bool read_nvinfer_batch_size(const std::string &path, int &batch_size, std::string &error);
+
+/*
  * Читает CSV с калибровочными точками. Строки: pixel_x,pixel_y,lng,lat.
  * Пустые строки, строки с '#' и строка заголовка пропускаются.
  */

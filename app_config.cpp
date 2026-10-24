@@ -279,6 +279,23 @@ bool load_app_config(const std::string &path, AppConfig &config, std::string &er
     return ok;
 }
 
+bool read_nvinfer_batch_size(const std::string &path, int &batch_size, std::string &error) {
+    GKeyFile *kf = g_key_file_new();
+    GError *err = NULL;
+
+    bool ok = g_key_file_load_from_file(kf, path.c_str(), G_KEY_FILE_NONE, &err) &&
+            get_int(kf, "property", "batch-size", batch_size, error);
+    if (err != NULL) {
+        error = path + ": " + err->message;
+        g_error_free(err);
+    } else if (!ok) {
+        error = path + ": " + error;
+    }
+
+    g_key_file_free(kf);
+    return ok;
+}
+
 bool load_calibration_points(const std::string &path,
                              std::vector<cv::Point2d> &pixels,
                              std::vector<cv::Point2d> &geo,

@@ -317,6 +317,49 @@ TEST("app_config: camera group errors") {
 }
 
 // ---------------------------------------------------------------------------
+// batch-size из конфига nvinfer
+// ---------------------------------------------------------------------------
+
+TEST("nvinfer config: batch-size is read from [property]") {
+    TempDir dir;
+    std::string path = dir.write("infer.txt",
+            "[property]\n"
+            "gpu-id=0\n"
+            "batch-size=4\n"
+            "filter-out-class-ids=0;1;2;3;5\n"
+            "\n"
+            "[class-attrs-all]\n"
+            "pre-cluster-threshold=0.25\n");
+    int batch = 0;
+    std::string error;
+    REQUIRE(read_nvinfer_batch_size(path, batch, error));
+    CHECK_EQ(batch, 4);
+}
+
+TEST("nvinfer config: configs/config_infer_primary_yolo.txt.example has batch-size") {
+    int batch = 0;
+    std::string error;
+    REQUIRE(read_nvinfer_batch_size(std::string(TEST_SRC_DIR) + "/configs/config_infer_primary_yolo.txt.example",
+                                    batch, error));
+    CHECK(batch > 0);
+}
+
+TEST("nvinfer config: no batch-size keeps the value, errors name the file") {
+    TempDir dir;
+    int batch = 7;
+    std::string error;
+    REQUIRE(read_nvinfer_batch_size(dir.write("infer.txt", "[property]\ngpu-id=0\n"), batch, error));
+    CHECK_EQ(batch, 7);
+
+    CHECK(!read_nvinfer_batch_size(dir.path + "/missing.txt", batch, error));
+    CHECK_CONTAINS(error, "missing.txt");
+
+    CHECK(!read_nvinfer_batch_size(dir.write("bad.txt", "[property]\nbatch-size=four\n"), batch, error));
+    CHECK_CONTAINS(error, "batch-size");
+    CHECK_CONTAINS(error, "bad.txt");
+}
+
+// ---------------------------------------------------------------------------
 // CSV калибровки
 // ---------------------------------------------------------------------------
 

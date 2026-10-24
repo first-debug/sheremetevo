@@ -100,6 +100,21 @@ int main(int argc, char *argv[]) {
 
     const int num_sources = static_cast<int>(config.cameras.size());
 
+    // nvinfer делит пачку nvstreammux (по кадру с каждой камеры) на части по своему
+    // batch-size: если камер больше, на каждую пачку уходит несколько проходов engine,
+    // растут задержка и нагрузка на GPU. Работать это будет, поэтому только предупреждение.
+    int nvinfer_batch = 0;
+    if (!read_nvinfer_batch_size(config.nvinfer_config, nvinfer_batch, error)) {
+        LOG_ERROR("CONFIG", "cannot read nvinfer config: %s", error.c_str());
+        return -1;
+    }
+    if (nvinfer_batch > 0 && num_sources > nvinfer_batch) {
+        LOG_WARN("CONFIG", "%d cameras, but batch-size=%d in %s: inference takes %d passes per batch, "
+                "which adds latency and GPU load; set batch-size to the number of cameras and rebuild the engine",
+                num_sources, nvinfer_batch, config.nvinfer_config.c_str(),
+                (num_sources + nvinfer_batch - 1) / nvinfer_batch);
+    }
+
     // Калибровку загружаем до сборки конвейера, чтобы ошибка в точках
     // обнаруживалась сразу, а не после подключения к камерам.
     UdpConnection udp_conn(config.udp_host, static_cast<uint16_t>(config.udp_port));

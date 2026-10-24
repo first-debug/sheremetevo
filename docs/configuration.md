@@ -183,7 +183,7 @@ calibration=calibration/camera0.csv
 | `onnx-file` | ONNX, экспортированный `models/export_yolo26.py` (см. [model.md](model.md)) |
 | `model-engine-file` | Готовый TensorRT engine. Если файла нет или он не подходит, `nvinfer` строит engine из ONNX при старте |
 | `labelfile-path` | `labels.txt`, создаётся скриптом экспорта |
-| `batch-size` | Равен числу камер |
+| `batch-size` | Равен числу камер. Если камер больше, `nvinfer` обрабатывает пачку в несколько проходов (больше задержка и нагрузка на GPU), при старте пишется предупреждение `[CONFIG]` |
 | `network-mode` | `0` — FP32, `2` — FP16 (быстрее, точность обычно почти не меняется), `1` — INT8 (нужна калибровка) |
 | `filter-out-class-ids` | Все классы COCO, кроме 4 (`airplane`). Должно совпадать с `[app] class-id` |
 | `cluster-mode` | `4` — без кластеризации: YOLO26 сам отдаёт итоговые рамки (NMS-free) |
