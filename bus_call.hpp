@@ -14,6 +14,8 @@ typedef struct {
     SourceManager *sources;
     // ошибки видеовыхода передаются сюда для перезапуска его ветки
     OutputManager *outputs;
+    // конвейер остановлен фатальной ошибкой, код выхода должен быть ненулевым
+    gboolean failed;
 } BusCallData;
 
 gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data);

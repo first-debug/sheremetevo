@@ -53,6 +53,7 @@ gboolean bus_call(GstBus *, GstMessage *msg, gpointer data) {
                         src_name, error->message, debug ? debug : "");
             } else {
                 LOG_ERROR("GST", "error from %s: %s | %s", src_name, error->message, debug ? debug : "");
+                data_struct->failed = TRUE;
                 g_main_loop_quit(data_struct->loop);
             }
 

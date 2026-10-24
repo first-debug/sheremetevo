@@ -250,7 +250,7 @@ int main(int argc, char *argv[]) {
 
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "sheremetevo");
     bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
-    BusCallData data = { loop, pipeline, &sources, &outputs };
+    BusCallData data = { loop, pipeline, &sources, &outputs, FALSE };
     bus_watch_id = gst_bus_add_watch(bus, bus_call, &data);
     gst_object_unref(bus);
 
@@ -317,6 +317,6 @@ int main(int argc, char *argv[]) {
 
     log_shutdown();
 
-    // Ненулевой код, если приложение остановил контроль работоспособности
-    return health.failed ? 1 : 0;
+    // Ненулевой код, если конвейер остановила ошибка или контроль работоспособности
+    return (data.failed || health.failed) ? 1 : 0;
 }
