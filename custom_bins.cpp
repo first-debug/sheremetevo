@@ -6,13 +6,14 @@
 
 #include "callbacks.hpp"
 #include "custom_bins.hpp"
+#include "log.hpp"
 
 // Создаёт элемент и сразу кладёт его в bin, чтобы при ошибке достаточно
 // было освободить только bin.
 static GstElement *add_element(GstElement *bin, const gchar *factory, const gchar *name) {
     GstElement *element = gst_element_factory_make(factory, name);
     if (element == NULL) {
-        g_printerr("Cannot create element %s (%s).\n", name, factory);
+        LOG_ERROR("PIPELINE", "Cannot create element %s (%s).", name, factory);
         return NULL;
     }
     gst_bin_add(GST_BIN(bin), element);
@@ -122,7 +123,7 @@ GstElement *create_source_bin(const gchar *uri, gint index, const SourceTransfor
         if (!gst_element_link(chain[i - 1], chain[i])) {
             gchar *a = gst_element_get_name(chain[i - 1]);
             gchar *b = gst_element_get_name(chain[i]);
-            g_printerr("Cannot link %s and %s in %s.\n", a, b, bin_name);
+            LOG_ERROR("PIPELINE", "Cannot link %s and %s in %s.", a, b, bin_name);
             g_free(a);
             g_free(b);
             gst_object_unref(bin);
@@ -135,7 +136,7 @@ GstElement *create_source_bin(const gchar *uri, gint index, const SourceTransfor
     gchar *elem_name;
     if (!bin_src) {
         elem_name = gst_element_get_name(last);
-        g_printerr("Failed to get pad of %s\n", elem_name);
+        LOG_ERROR("PIPELINE", "Failed to get pad of %s", elem_name);
 
         g_free(elem_name);
         gst_object_unref(bin);
@@ -147,7 +148,7 @@ GstElement *create_source_bin(const gchar *uri, gint index, const SourceTransfor
 
     if (!ghost_pad) {
         elem_name = gst_element_get_name(bin);
-        g_printerr("Failed to create ghost pad for %s\n", elem_name);
+        LOG_ERROR("PIPELINE", "Failed to create ghost pad for %s", elem_name);
 
         g_free(elem_name);
         gst_object_unref(bin);
@@ -156,7 +157,7 @@ GstElement *create_source_bin(const gchar *uri, gint index, const SourceTransfor
 
     if (!gst_element_add_pad(bin, ghost_pad)) {
         elem_name = gst_element_get_name(bin);
-        g_printerr ("Failed to add ghost pad in %s\n", elem_name);
+        LOG_ERROR("PIPELINE", "Failed to add ghost pad in %s", elem_name);
 
         g_free(elem_name);
         gst_object_unref(bin);
@@ -178,7 +179,7 @@ GstElement *create_sink_bin(const gchar *uri, gint index) {
     sink = gst_element_factory_make("rtspclientsink", "sink");
 
     if (!bin || !encoder || !parser || !sink) {
-        g_printerr("Cannot create rtsp source bin for uri = %s\n", uri);
+        LOG_ERROR("PIPELINE", "Cannot create rtsp sink bin for uri = %s", uri);
         if (bin) gst_object_unref(bin);
         if (encoder) gst_object_unref(encoder);
         if (parser) gst_object_unref(parser);
@@ -199,7 +200,7 @@ GstElement *create_sink_bin(const gchar *uri, gint index) {
 
     if (!ghost_pad) {
         elem_name = gst_element_get_name(bin);
-        g_printerr("Failed to create ghost pad for %s\n", elem_name);
+        LOG_ERROR("PIPELINE", "Failed to create ghost pad for %s", elem_name);
 
         g_free(elem_name);
         gst_object_unref(bin);
@@ -208,7 +209,7 @@ GstElement *create_sink_bin(const gchar *uri, gint index) {
 
     if (!gst_element_add_pad(bin, ghost_pad)) {
         elem_name = gst_element_get_name(bin);
-        g_printerr ("Failed to add ghost pad in %s\n", elem_name);
+        LOG_ERROR("PIPELINE", "Failed to add ghost pad in %s", elem_name);
 
         g_free(elem_name);
         gst_object_unref(bin);
@@ -216,7 +217,7 @@ GstElement *create_sink_bin(const gchar *uri, gint index) {
     }
 
     if (!gst_element_link_many(encoder, parser, NULL)){
-        g_printerr("Cannot link elements in rtsp sink for uri = %s.\n", uri);
+        LOG_ERROR("PIPELINE", "Cannot link elements in rtsp sink for uri = %s.", uri);
         gst_object_unref(bin);
         return NULL;
     }
@@ -224,7 +225,7 @@ GstElement *create_sink_bin(const gchar *uri, gint index) {
     GstPad *parser_src = gst_element_get_static_pad(parser, "src");
     if (!parser_src) {
         elem_name = gst_element_get_name(parser);
-        g_printerr ("Failed to get pad of %s\n", elem_name);
+        LOG_ERROR("PIPELINE", "Failed to get pad of %s", elem_name);
 
         g_free(elem_name);
         gst_object_unref(bin);
@@ -235,7 +236,7 @@ GstElement *create_sink_bin(const gchar *uri, gint index) {
     GstPad *sink_pad = gst_element_request_pad_simple(sink, buffer);
     if (!sink_pad) {
         elem_name = gst_element_get_name(sink);
-        g_printerr ("Failed to request sink pad of %s\n", elem_name);
+        LOG_ERROR("PIPELINE", "Failed to request sink pad of %s", elem_name);
 
         g_free(elem_name);
         gst_object_unref(bin);
@@ -243,8 +244,7 @@ GstElement *create_sink_bin(const gchar *uri, gint index) {
     }
 
     if (gst_pad_link(parser_src, sink_pad) != GST_PAD_LINK_OK) {
-        // одним вызовом: каждый g_printerr — отдельная запись журнала
-        g_printerr("Cannot link %s and %s in the %s\n", GST_ELEMENT_NAME(parser),
+        LOG_ERROR("PIPELINE", "Cannot link %s and %s in the %s", GST_ELEMENT_NAME(parser),
                 GST_ELEMENT_NAME(sink), GST_ELEMENT_NAME(bin));
 
         gst_object_unref(bin);

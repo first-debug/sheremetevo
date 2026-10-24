@@ -28,18 +28,15 @@ void set_probe(GstElement* element,
         ) {
     GstPad *pad = gst_element_get_static_pad(element, pad_name);
     if (!pad) {
-      g_printerr ("[PROBE] Error: Could not get pad '%s' from element '%s'\n",
-                  pad_name, GST_ELEMENT_NAME (element));
-      return;
+        LOG_ERROR("PROBE", "cannot get pad %s of %s", pad_name, GST_ELEMENT_NAME(element));
+        return;
     }
 
-    guint probe_id = gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER,
-                                         prober, u_data, NULL);
+    guint probe_id = gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, prober, u_data, NULL);
     if (probe_id == 0) {
-      g_printerr ("[PROBE] Error: Failed to add probe on pad '%s'\n", pad_name);
+        LOG_ERROR("PROBE", "cannot add probe on %s:%s", GST_ELEMENT_NAME(element), pad_name);
     } else {
-      g_print ("[PROBE] Probe installed successfully on %s:%s (probe_id=%u)\n",
-               GST_ELEMENT_NAME(element), pad_name, probe_id);
+        LOG_DEBUG("PROBE", "probe installed on %s:%s", GST_ELEMENT_NAME(element), pad_name);
     }
 
     gst_object_unref (pad);

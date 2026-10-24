@@ -20,7 +20,7 @@ static GstPadProbeReturn source_pad_probe(GstPad *, GstPadProbeInfo *info, gpoin
 
     GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
     if (event != NULL && GST_EVENT_TYPE(event) == GST_EVENT_EOS && !slot->manager->shutting_down) {
-        LOG_CAM_WARN("RTSP", static_cast<int>(slot->index), "end of stream from server");
+        LOG_CAM_INFO("RTSP", static_cast<int>(slot->index), "end of stream from server");
         return GST_PAD_PROBE_DROP;
     }
     return GST_PAD_PROBE_OK;
@@ -59,7 +59,7 @@ static void start_source(SourceSlot &slot) {
 bool source_manager_add(SourceManager &manager, GstElement *pipeline, GstElement *streammux,
         GstElement *bin, guint index) {
     if (index != manager.slots.size()) {
-        g_printerr("[RTSP] camera %u added out of order\n", index);
+        LOG_ERROR("RTSP", "camera %u added out of order", index);
         return false;
     }
 
@@ -75,7 +75,7 @@ bool source_manager_add(SourceManager &manager, GstElement *pipeline, GstElement
         gst_object_unref(sink_pad);
     }
     if (!linked) {
-        g_printerr("Cannot link source bin %u and streammux.\n", index);
+        LOG_ERROR("PIPELINE", "cannot link source bin %u and streammux", index);
         if (src_pad) {
             gst_object_unref(src_pad);
         }

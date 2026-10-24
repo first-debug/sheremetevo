@@ -33,7 +33,7 @@ static const guint SHUTDOWN_TIMEOUT_SEC = 10;
 
 static gboolean on_eos_timeout(gpointer user_data) {
     SignalData *data = (SignalData *)user_data;
-    g_printerr("EOS did not reach the sinks in %u s, stopping anyway.\n", EOS_TIMEOUT_SEC);
+    LOG_WARN("APP", "EOS did not reach the sinks in %u s, stopping anyway", EOS_TIMEOUT_SEC);
     g_main_loop_quit(data->loop);
     return G_SOURCE_REMOVE;
 }
@@ -44,7 +44,7 @@ static gboolean on_eos_timeout(gpointer user_data) {
 static gboolean on_terminate_signal(gpointer user_data) {
     SignalData *data = (SignalData *)user_data;
     if (!data->eos_sent) {
-        g_print("\nStopping pipeline (send the signal again to force quit)...\n");
+        LOG_INFO("APP", "stopping pipeline (send the signal again to force quit)");
         data->eos_sent = TRUE;
         source_manager_shutdown(*data->sources);
         gst_element_send_event(data->pipeline, gst_event_new_eos());
@@ -70,20 +70,20 @@ int main(int argc, char *argv[]) {
     gst_init(&argc, &argv);
 
     // Построчная буферизация stdout: иначе при выводе в файл или через tee
-    // строки g_print (статистика, сообщения об остановке) теряются при падении.
+    // строки журнала и вывод DeepStream теряются при падении.
     setvbuf(stdout, NULL, _IOLBF, 0);
-    // С этого момента g_print/g_printerr идут через журнал: время, уровень, компонент
+    // С этого момента журнал работает; g_print/g_printerr сторонних библиотек тоже идут в него
     log_init();
 
     if (argc != 2) {
-        g_printerr("Usage: %s <path_to_app_config>\n", argv[0]);
+        LOG_ERROR("APP", "usage: %s <path_to_app_config>", argv[0]);
         return -1;
     }
 
     AppConfig config;
     std::string error;
     if (!load_app_config(argv[1], config, error)) {
-        g_printerr("Cannot load config: %s\n", error.c_str());
+        LOG_ERROR("CONFIG", "cannot load config: %s", error.c_str());
         return -1;
     }
 
@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
     // обнаруживалась сразу, а не после подключения к камерам.
     UdpConnection udp_conn(config.udp_host, static_cast<uint16_t>(config.udp_port));
     if (!udp_conn.is_open()) {
-        g_printerr("Cannot open UDP connection to %s:%d.\n", config.udp_host.c_str(), config.udp_port);
+        LOG_ERROR("UDP", "cannot open UDP connection to %s:%d", config.udp_host.c_str(), config.udp_port);
         return -1;
     }
 
@@ -119,20 +119,20 @@ int main(int argc, char *argv[]) {
     for (int cam = 0; cam < num_sources; cam++) {
         std::vector<cv::Point2d> pixels, geo;
         if (!load_calibration_points(config.cameras[cam].calibration_file, pixels, geo, error)) {
-            g_printerr("Calibration of camera %d failed: %s\n", cam, error.c_str());
+            LOG_CAM_ERROR("CALIB", cam, "calibration failed: %s", error.c_str());
             return -1;
         }
 
         try {
             probe_data.transformers.emplace_back(pixels, geo, config.ransac_threshold_m);
         } catch (const std::exception &e) {
-            g_printerr("Calibration of camera %d failed: %s\n", cam, e.what());
+            LOG_CAM_ERROR("CALIB", cam, "calibration failed: %s", e.what());
             return -1;
         }
 
         const auto &st = probe_data.transformers.back().reprojection_stats();
-        g_print("[CALIB] camera %d: inliers %zu/%zu, reprojection error median %.1f m, p90 %.1f m, max %.1f m\n",
-                cam, st.inliers, st.points, st.median_m, st.p90_m, st.max_m);
+        LOG_CAM_INFO("CALIB", cam, "inliers %zu/%zu, reprojection error median %.1f m, p90 %.1f m, max %.1f m",
+                st.inliers, st.points, st.median_m, st.p90_m, st.max_m);
     }
 
     probe_data.zones.resize(num_sources);
@@ -142,11 +142,11 @@ int main(int argc, char *argv[]) {
             continue;
         }
         if (!load_geo_zone(zone_file, probe_data.zones[cam], error)) {
-            g_printerr("Zone of camera %d failed: %s\n", cam, error.c_str());
+            LOG_CAM_ERROR("ZONE", cam, "cannot load zone: %s", error.c_str());
             return -1;
         }
-        g_print("[ZONE] camera %d: %zu vertices, area %.0f m2; points outside are not sent\n",
-                cam, probe_data.zones[cam].vertex_count(), probe_data.zones[cam].area_m2());
+        LOG_CAM_INFO("ZONE", cam, "%zu vertices, area %.0f m2; points outside are not sent",
+                probe_data.zones[cam].vertex_count(), probe_data.zones[cam].area_m2());
     }
 
     loop = g_main_loop_new(NULL, FALSE);
@@ -168,7 +168,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (!pipeline || !streammux || !pgie || !demux) {
-        g_printerr("Cannot create some modules.\n");
+        LOG_ERROR("PIPELINE", "cannot create nvstreammux, nvinfer or output elements");
         return -1;
     }
 
@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
     if (config.tracker_enabled) {
         tracker = gst_element_factory_make("nvtracker", "tracker");
         if (!tracker) {
-            g_printerr("Cannot create nvtracker.\n");
+            LOG_ERROR("PIPELINE", "cannot create nvtracker");
             return -1;
         }
         g_object_set(G_OBJECT(tracker),
@@ -221,7 +221,7 @@ int main(int argc, char *argv[]) {
         // Номер входа связывает камеру с её калибровкой, поэтому пропускать
         // источник нельзя: все следующие камеры получат чужую гомографию.
         if (new_bin == NULL) {
-            g_printerr("Cannot create rtsp source bin for uri = %s\n", camera.uri.c_str());
+            LOG_CAM_ERROR("PIPELINE", index, "cannot create rtsp source bin for uri = %s", camera.uri.c_str());
             return -1;
         }
 
@@ -233,7 +233,7 @@ int main(int argc, char *argv[]) {
     if (!gst_element_link(streammux, pgie) ||
             (tracker && !gst_element_link(pgie, tracker)) ||
             !gst_element_link(analytics_tail, demux)) {
-        g_printerr("Cannot link elements.\n");
+        LOG_ERROR("PIPELINE", "cannot link nvstreammux, nvinfer, nvtracker and output");
         return -1;
     }
 
@@ -333,7 +333,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    g_print("\nStarting pipline...\n");
+    LOG_INFO("APP", "starting pipeline");
     gst_element_set_state(pipeline, GST_STATE_PLAYING);
     // После перехода в PLAYING: в нём nvinfer может минутами строить engine,
     // и сторож не должен принять это за зависание.
@@ -351,7 +351,7 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, SIG_DFL);
     alarm(SHUTDOWN_TIMEOUT_SEC);
 
-    g_print("Stopping pipeline...\n");
+    LOG_INFO("APP", "shutting down pipeline");
     gst_element_set_state(pipeline, GST_STATE_NULL);
     alarm(0);
 

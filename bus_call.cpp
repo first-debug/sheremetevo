@@ -39,7 +39,8 @@ gboolean bus_call(GstBus *, GstMessage *msg, gpointer data) {
             if (source_bin != NULL) {
                 // Ошибка одной камеры не должна останавливать остальные:
                 // nvstreammux продолжит отправлять пачки без неё, а камеру переподключим.
-                LOG_ERROR("GST", "error in %s (%s): %s | %s",
+                // Причину в журнал пишет source_manager, подробности — только в debug.
+                LOG_DEBUG("GST", "error in %s (%s): %s | %s",
                         GST_OBJECT_NAME(source_bin), src_name, error->message, debug ? debug : "");
                 if (data_struct->sources != NULL) {
                     source_manager_on_error(*data_struct->sources, source_bin, error->message);
