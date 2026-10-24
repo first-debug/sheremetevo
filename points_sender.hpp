@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -60,6 +61,9 @@ private:
     // используются только потоком отправки
     uint64_t sequence = 0;
     std::vector<uint8_t> buffer;
+    // ошибки отправки пишутся в журнал не чаще раза в минуту: когда и сколько
+    std::chrono::steady_clock::time_point last_error_log{};
+    uint64_t errors_not_logged = 0;
 
     std::thread worker;
 };

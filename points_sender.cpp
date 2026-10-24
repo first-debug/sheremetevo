@@ -1,4 +1,5 @@
 #include <time.h>
+#include <cerrno>
 #include <chrono>
 #include <utility>
 
@@ -10,6 +11,9 @@
 using google::protobuf::io::CodedOutputStream;
 
 namespace {
+
+// Повторяющиеся ошибки отправки (получатель недоступен) — не чаще раза в минуту
+const std::chrono::seconds kErrorLogInterval(60);
 
 // Предел очереди: при интервале 1 с и 4 камерах по 25 fps в ней ~100 кадров.
 // Больше — значит, поток отправки завис; новые кадры отбрасываются.
@@ -201,15 +205,29 @@ void PointsSender::send_batch(sheremetevo::Batch &batch) {
         buffer.resize(size);
     }
 
+    const char *failure = NULL;
     if (!batch.SerializeToArray(buffer.data(), static_cast<int>(size))) {
-        send_errors++;
-        LOG_ERROR("UDP", "cannot serialize batch");
+        failure = "cannot serialize batch";
     } else if (udp_conn.send(buffer.data(), size) < 0) {
-        send_errors++;
-        LOG_ERROR("UDP", "failed to send %zu bytes to %s:%u",
-                size, udp_conn.server_ip.c_str(), static_cast<unsigned>(udp_conn.server_port));
+        failure = g_strerror(errno);
     } else {
         datagrams_sent++;
+    }
+
+    if (failure != NULL) {
+        send_errors++;
+        auto now = std::chrono::steady_clock::now();
+        if (last_error_log == std::chrono::steady_clock::time_point{} ||
+                now - last_error_log >= kErrorLogInterval) {
+            LOG_ERROR("UDP", "failed to send %zu bytes to %s:%u: %s (%" G_GUINT64_FORMAT
+                    " more failures since the previous message)",
+                    size, udp_conn.server_ip.c_str(), static_cast<unsigned>(udp_conn.server_port),
+                    failure, (guint64)errors_not_logged);
+            last_error_log = now;
+            errors_not_logged = 0;
+        } else {
+            errors_not_logged++;
+        }
     }
 
     batch.Clear();

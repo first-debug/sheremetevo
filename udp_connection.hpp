@@ -17,6 +17,7 @@ public:
     const uint16_t           server_port;
 
     UdpConnection(std::string server_ip, uint16_t server_port);
+    // Возвращает число отправленных байт или -1, причина ошибки — в errno
     ssize_t send(const uint8_t *data, size_t len);
     bool is_open() const { return sockfd >= 0; }
 

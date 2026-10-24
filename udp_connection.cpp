@@ -38,14 +38,16 @@ UdpConnection::UdpConnection(std::string server_ip, uint16_t server_port)
 }
 
 ssize_t UdpConnection::send(const uint8_t *data, size_t len) {
+    // Ошибки не пишутся в журнал здесь: при сбое сети send вызывается часто,
+    // журналирует (с ограничением частоты) вызывающий, причина — в errno.
     if (this->sockfd < 0) {
-        LOG_ERROR("UDP", "socket not initialized");
+        errno = ENOTCONN;
         return -1;
     }
 
     if (data == NULL) {
-        LOG_ERROR("UDP", "invalid data argument");
-        return 0;
+        errno = EINVAL;
+        return -1;
     }
 
     ssize_t sent_size = sendto(this->sockfd,
@@ -53,15 +55,6 @@ ssize_t UdpConnection::send(const uint8_t *data, size_t len) {
             len,
             0,
             (const struct sockaddr *)&this->server_addr, sizeof(this->server_addr));
-
-    if (sent_size < 0) {
-        LOG_ERROR("UDP", "sendto: %s", g_strerror(errno));
-        return -1;
-    }
-
-    if (static_cast<size_t>(sent_size) != len) {
-        LOG_WARN("UDP", "partial send (%zd of %zu bytes)", sent_size, len);
-    }
 
     return sent_size;
 }
